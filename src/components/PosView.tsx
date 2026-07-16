@@ -76,6 +76,9 @@ export default function PosView({ onCheckoutSuccess }: { onCheckoutSuccess: (ord
   // Shift Lock Modal State
   const [shiftStartingCash, setShiftStartingCash] = useState('200000');
 
+  // Mobile View Toggle
+  const [activeMobileView, setActiveMobileView] = useState<'PRODUCTS' | 'CART'>('PRODUCTS');
+
   // Categories list
   const categories = useMemo(() => {
     const list = new Set<string>();
@@ -273,10 +276,38 @@ export default function PosView({ onCheckoutSuccess }: { onCheckoutSuccess: (ord
   }
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 h-[calc(100vh-100px)] overflow-hidden">
-      
-      {/* LEFT COLUMN: PRODUCT GRID (Col span 7) */}
-      <div className="lg:col-span-7 flex flex-col h-full bg-slate-50/50 rounded-2xl border border-slate-200/60 overflow-hidden">
+    <div className="flex flex-col gap-3 h-[calc(100vh-100px)] overflow-hidden">
+      {/* Mobile view switcher tabs */}
+      <div className="lg:hidden flex border border-slate-200 rounded-xl overflow-hidden bg-white shadow-sm flex-shrink-0 p-0.5">
+        <button
+          onClick={() => setActiveMobileView('PRODUCTS')}
+          className={`flex-1 py-2 text-xs font-bold text-center rounded-lg transition-all ${
+            activeMobileView === 'PRODUCTS'
+              ? 'bg-indigo-600 text-white shadow-sm'
+              : 'bg-white text-slate-600 hover:bg-slate-50'
+          }`}
+        >
+          Katalog Produk
+        </button>
+        <button
+          onClick={() => setActiveMobileView('CART')}
+          className={`flex-1 py-2 text-xs font-bold text-center rounded-lg transition-all flex items-center justify-center gap-1.5 ${
+            activeMobileView === 'CART'
+              ? 'bg-indigo-600 text-white shadow-sm'
+              : 'bg-white text-slate-600 hover:bg-slate-50'
+          }`}
+        >
+          <span>Keranjang Belanja</span>
+          <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold leading-none ${activeMobileView === 'CART' ? 'bg-emerald-500 text-white' : 'bg-slate-100 text-slate-700 border border-slate-200'}`}>
+            {cart.reduce((sum, item) => sum + item.quantity, 0)}
+          </span>
+        </button>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 lg:gap-5 flex-1 overflow-hidden">
+        
+        {/* LEFT COLUMN: PRODUCT GRID (Col span 7) */}
+        <div className={`${activeMobileView === 'PRODUCTS' ? 'flex' : 'hidden'} lg:flex lg:col-span-7 flex-col h-full bg-slate-50/50 rounded-2xl border border-slate-200/60 overflow-hidden`}>
         
         {/* Top filter + search section */}
         <div className="p-4 bg-white border-b border-slate-100 space-y-3">
@@ -395,8 +426,8 @@ export default function PosView({ onCheckoutSuccess }: { onCheckoutSuccess: (ord
         </div>
       </div>
 
-      {/* RIGHT COLUMN: SHOPPING CART (Col span 5) */}
-      <div className="lg:col-span-5 bg-white rounded-2xl border border-slate-200 shadow-sm flex flex-col h-full overflow-hidden">
+        {/* RIGHT COLUMN: SHOPPING CART (Col span 5) */}
+        <div className={`${activeMobileView === 'CART' ? 'flex' : 'hidden'} lg:flex lg:col-span-5 bg-white rounded-2xl border border-slate-200 shadow-sm flex flex-col h-full overflow-hidden`}>
         {/* Cart Header */}
         <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
           <div>
@@ -625,6 +656,7 @@ export default function PosView({ onCheckoutSuccess }: { onCheckoutSuccess: (ord
           </div>
         </div>
       </div>
+    </div>
 
       {/* MODAL 1: VARIANT & OPTIONS SELECTOR */}
       {selectedProductForOptions && (

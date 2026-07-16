@@ -231,6 +231,12 @@ const INITIAL_KONVEKSI_ORDERS: KonveksiOrder[] = [
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // Load initial state from local storage or mock data
   const [products, setProducts] = useState<Product[]>(() => {
+    const isV2 = localStorage.getItem('kdp_products_v2') === 'loaded';
+    if (!isV2) {
+      localStorage.setItem('kdp_products', JSON.stringify(INITIAL_PRODUCTS));
+      localStorage.setItem('kdp_products_v2', 'loaded');
+      return INITIAL_PRODUCTS;
+    }
     const saved = localStorage.getItem('kdp_products');
     return saved ? JSON.parse(saved) : INITIAL_PRODUCTS;
   });

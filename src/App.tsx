@@ -19,15 +19,14 @@ import ReportsView from './components/ReportsView';
 import StaffView from './components/StaffView';
 import BranchesView from './components/BranchesView';
 import PromotionsView from './components/PromotionsView';
-import OnlineStoreView from './components/OnlineStoreView';
-import PpobView from './components/PpobView';
 import SettingsView from './components/SettingsView';
 import KonveksiView from './components/KonveksiView';
-import { X, Printer } from 'lucide-react';
+import { X, Printer, Menu } from 'lucide-react';
 
 function AppContent() {
   const { activeTab, setActiveTab, currentBranch } = useApp();
   const [selectedReceipt, setSelectedReceipt] = useState<any | null>(null);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   const handleOpenReceipt = (order: any) => {
     setSelectedReceipt(order);
@@ -223,12 +222,6 @@ function AppContent() {
         return <BranchesView />;
       case 'promotions':
         return <PromotionsView />;
-      case 'online-store':
-      case 'marketplace':
-        return <OnlineStoreView />;
-      case 'ppob':
-      case 'ewallet':
-        return <PpobView />;
       case 'settings':
         return <SettingsView />;
       default:
@@ -239,50 +232,67 @@ function AppContent() {
   return (
     <div className="flex h-screen bg-slate-50 overflow-hidden font-sans">
       {/* Sidebar Navigation */}
-      <Sidebar />
+      <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
+
+      {/* Overlay background on mobile */}
+      {isSidebarOpen && (
+        <div 
+          onClick={() => setIsSidebarOpen(false)}
+          className="fixed inset-0 bg-slate-900/40 z-30 lg:hidden backdrop-blur-sm transition-opacity duration-300"
+        />
+      )}
 
       {/* Main Content Area */}
       <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {/* Header bar */}
-        <header className="h-16 bg-white border-b border-slate-200 px-6 flex items-center justify-between sticky top-0 z-10 flex-shrink-0">
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 rounded-lg">
+        <header className="h-16 bg-white border-b border-slate-200 px-4 sm:px-6 flex items-center justify-between sticky top-0 z-10 flex-shrink-0">
+          <div className="flex items-center gap-2 sm:gap-4">
+            <button
+              onClick={() => setIsSidebarOpen(true)}
+              className="p-2 -ml-1 rounded-lg text-slate-500 hover:bg-slate-100 lg:hidden flex items-center justify-center"
+              title="Buka Menu"
+            >
+              <Menu className="h-5 w-5" />
+            </button>
+            <div className="flex items-center gap-1.5 sm:gap-2 px-2.5 py-1.5 bg-slate-100 rounded-lg">
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
               <span className="text-xs font-semibold text-slate-700">Cabang: {currentBranch.name}</span>
             </div>
-            <span className="text-slate-300">/</span>
-            <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">{activeTab.replace('-', ' ')}</span>
+            <span className="text-slate-300 hidden sm:inline">/</span>
+            <span className="text-xs font-bold text-slate-500 uppercase tracking-widest hidden sm:inline">{activeTab.replace('-', ' ')}</span>
           </div>
 
-          <div className="flex items-center gap-6">
+          <div className="flex items-center gap-4 sm:gap-6">
             <button
               onClick={() => setActiveTab('pos')}
-              className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg shadow-sm shadow-indigo-200 transition-all"
+              className="px-3 sm:px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg shadow-sm shadow-indigo-200 transition-all flex items-center gap-1"
             >
-              + Transaksi Baru (F2)
+              <span>+</span>
+              <span className="hidden sm:inline">Transaksi Baru (F2)</span>
+              <span className="sm:hidden">Transaksi</span>
             </button>
           </div>
         </header>
 
         {/* View panel */}
-        <div className="flex-1 overflow-y-auto p-6 bg-slate-50/50 scrollbar-thin">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 bg-slate-50/50 scrollbar-thin">
           {renderActiveView()}
         </div>
 
         {/* FOOTER STATUS BAR */}
-        <footer className="h-8 bg-slate-800 text-[10px] text-slate-400 flex items-center px-6 justify-between flex-shrink-0 select-none">
+        <footer className="h-8 bg-slate-800 text-[10px] text-slate-400 flex items-center px-4 sm:px-6 justify-between flex-shrink-0 select-none">
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-1.5">
               <span className="w-1.5 h-1.5 rounded-full bg-green-500"></span>
-              Sistem: Operasional (Server Online)
+              Sistem: Operasional <span className="hidden sm:inline">(Server Online)</span>
             </div>
             <div className="flex items-center gap-1.5 border-l border-slate-700 pl-4">
-              Database: PostgreSQL v16.1 (Supabase)
+              Database: PostgreSQL v16.1 <span className="hidden sm:inline">(Supabase)</span>
             </div>
           </div>
           <div className="flex items-center gap-4 uppercase font-bold tracking-tighter">
             <span>v1.0.4-PROD</span>
-            <span className="text-slate-500">2026 © KASIR KEDAI KEPANDUAN</span>
+            <span className="text-slate-500 hidden sm:inline">2026 © KASIR KEDAI KEPANDUAN</span>
           </div>
         </footer>
       </main>

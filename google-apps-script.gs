@@ -87,8 +87,7 @@ function getOrCreateSheet(spreadsheet, name, headers) {
  */
 function createJSONResponse(data) {
   return ContentService.createTextOutput(JSON.stringify(data))
-    .setMimeType(ContentService.MimeType.JSON)
-    .setHeader("Access-Control-Allow-Origin", "*");
+    .setMimeType(ContentService.MimeType.JSON);
 }
 
 /**

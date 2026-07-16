@@ -30,10 +30,16 @@ import {
   User,
   MapPin,
   ChevronDown,
-  Scissors
+  Scissors,
+  X
 } from 'lucide-react';
 
-export default function Sidebar() {
+interface SidebarProps {
+  isOpen: boolean;
+  onClose: () => void;
+}
+
+export default function Sidebar({ isOpen, onClose }: SidebarProps) {
   const {
     activeTab,
     setActiveTab,
@@ -72,15 +78,10 @@ export default function Sidebar() {
     { id: 'branches', label: 'Multi Cabang', icon: Network, category: 'FITUR SAAS' },
     { id: 'promotions', label: 'Promosi & Kupon', icon: Percent, category: 'FITUR SAAS' },
     
-    { id: 'online-store', label: 'Toko Online', icon: Globe, category: 'SALURAN ONLINE' },
-    { id: 'marketplace', label: 'Sinkronisasi Marketplace', icon: Store, category: 'SALURAN ONLINE' },
-    { id: 'ppob', label: 'PPOB & Pulsa', icon: Smartphone, category: 'LAYANAN DIGITAL' },
-    { id: 'ewallet', label: 'Top Up E-Wallet', icon: Wallet, category: 'LAYANAN DIGITAL' },
-    
     { id: 'settings', label: 'Pengaturan Sistem', icon: Settings, category: 'SISTEM' }
   ];
 
-  const categories = ['UTAMA', 'OPERASIONAL', 'MITRA & PELANGGAN', 'KEUANGAN', 'FITUR SAAS', 'SALURAN ONLINE', 'LAYANAN DIGITAL', 'SISTEM'];
+  const categories = ['UTAMA', 'OPERASIONAL', 'MITRA & PELANGGAN', 'KEUANGAN', 'FITUR SAAS', 'SISTEM'];
 
   const getRoleBadgeColor = (role: string) => {
     switch (role) {
@@ -93,7 +94,7 @@ export default function Sidebar() {
   };
 
   return (
-    <aside id="app-sidebar" className="w-68 bg-white border-r border-slate-200 text-slate-700 flex flex-col h-screen overflow-hidden select-none flex-none">
+    <aside id="app-sidebar" className={`fixed inset-y-0 left-0 z-40 w-68 bg-white border-r border-slate-200 text-slate-700 flex flex-col h-screen overflow-hidden select-none flex-none transition-transform duration-300 ease-in-out lg:static lg:translate-x-0 ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}>
       {/* Brand Header */}
       <div className="p-4 border-b border-slate-200 flex items-center justify-between">
         <div className="flex items-center gap-2">
@@ -110,22 +111,33 @@ export default function Sidebar() {
           </div>
         </div>
 
-        {/* Sync Status / Offline Indicator */}
-        <button
-          id="sync-btn"
-          onClick={() => isOnline && syncCloud()}
-          disabled={isSyncing || !isOnline}
-          className={`p-1.5 rounded-lg border text-xs flex items-center justify-center transition-all ${
-            !isOnline
-              ? 'bg-rose-50 text-rose-600 border-rose-200 cursor-not-allowed'
-              : isSyncing
-              ? 'bg-indigo-50 text-indigo-600 border-indigo-200 animate-spin'
-              : 'bg-slate-50 hover:bg-slate-100 text-slate-500 hover:text-slate-800 border-slate-200'
-          }`}
-          title={!isOnline ? 'Sedang Offline' : isSyncing ? 'Sinkronisasi Cloud...' : 'Sinkronisasi Manual'}
-        >
-          <RefreshCw className="h-3.5 w-3.5" />
-        </button>
+        <div className="flex items-center gap-2">
+          {/* Sync Status / Offline Indicator */}
+          <button
+            id="sync-btn"
+            onClick={() => isOnline && syncCloud()}
+            disabled={isSyncing || !isOnline}
+            className={`p-1.5 rounded-lg border text-xs flex items-center justify-center transition-all ${
+              !isOnline
+                ? 'bg-rose-50 text-rose-600 border-rose-200 cursor-not-allowed'
+                : isSyncing
+                ? 'bg-indigo-50 text-indigo-600 border-indigo-200 animate-spin'
+                : 'bg-slate-50 hover:bg-slate-100 text-slate-500 hover:text-slate-800 border-slate-200'
+            }`}
+            title={!isOnline ? 'Sedang Offline' : isSyncing ? 'Sinkronisasi Cloud...' : 'Sinkronisasi Manual'}
+          >
+            <RefreshCw className="h-3.5 w-3.5" />
+          </button>
+
+          {/* Close button on mobile */}
+          <button
+            onClick={onClose}
+            className="p-1.5 rounded-lg border border-slate-200 text-slate-400 hover:text-slate-600 lg:hidden"
+            title="Tutup Menu"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
       </div>
 
       {/* Network / Active Branch Selector */}
@@ -186,6 +198,7 @@ export default function Sidebar() {
                         setActiveTab(item.id);
                         setShowRoleMenu(false);
                         setShowBranchMenu(false);
+                        onClose(); // Auto close on mobile
                       }}
                       className={`w-full flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
                         isSelected
