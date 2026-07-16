@@ -203,6 +203,7 @@ export interface Staff {
   attendanceStatus: 'PRESENT' | 'ABSENT' | 'LATE' | 'OFF';
   currentShiftId?: string;
   basicSalary?: number;
+  pin?: string; // security code for login
 }
 
 export interface Promotion {

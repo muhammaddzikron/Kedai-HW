@@ -49,6 +49,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
     syncCloud,
     currentUser,
     changeRole,
+    loginAsUser,
     currentBranch,
     changeBranch,
     branches,
@@ -57,6 +58,9 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
 
   const [showRoleMenu, setShowRoleMenu] = useState(false);
   const [showBranchMenu, setShowBranchMenu] = useState(false);
+  const [pinTargetUser, setPinTargetUser] = useState<any | null>(null);
+  const [enteredPin, setEnteredPin] = useState('');
+  const [pinError, setPinError] = useState('');
 
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, category: 'UTAMA' },
@@ -265,18 +269,20 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
           <div className="absolute bottom-16 left-3 right-3 bg-white border border-slate-200 rounded-xl shadow-2xl overflow-hidden py-1.5 z-50 animate-in fade-in slide-in-from-bottom-2 duration-150">
             <div className="px-3 py-1 border-b border-slate-100 mb-1">
               <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">
-                Ganti Role Pengguna (RBAC)
+                Pilih Akun Karyawan
               </span>
             </div>
             {staff.map((s) => (
               <button
                 key={s.id}
                 onClick={() => {
-                  changeRole(s.role);
+                  setPinTargetUser(s);
+                  setEnteredPin('');
+                  setPinError('');
                   setShowRoleMenu(false);
                 }}
                 className={`w-full text-left px-3 py-1.5 text-xs flex items-center justify-between transition ${
-                  currentUser.role === s.role
+                  currentUser.id === s.id
                     ? 'bg-indigo-50 text-indigo-700 font-semibold'
                     : 'hover:bg-slate-50 text-slate-500 hover:text-slate-800'
                 }`}
@@ -290,6 +296,101 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
           </div>
         )}
       </div>
+
+      {/* SECURE TOUCH-FRIENDLY NUMPAD PIN MODAL */}
+      {pinTargetUser && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 flex items-center justify-center p-4 backdrop-blur-xs">
+          <div className="bg-white rounded-3xl max-w-xs w-full p-6 border border-slate-200 shadow-2xl relative text-center">
+            <h3 className="text-sm font-extrabold text-slate-900 mb-1">Verifikasi PIN Karyawan</h3>
+            <p className="text-[11px] text-slate-400 font-semibold mb-4 leading-normal">
+              Masukkan PIN untuk login ke akun <br />
+              <span className="text-slate-700 font-black">{pinTargetUser.name}</span>
+            </p>
+
+            {/* PIN Dots Indicator */}
+            <div className="flex justify-center gap-3 mb-5">
+              {[...Array(4)].map((_, i) => (
+                <div
+                  key={i}
+                  className={`h-4.5 w-4.5 rounded-full border-2 transition ${
+                    enteredPin.length > i
+                      ? 'bg-indigo-600 border-indigo-600 shadow-sm shadow-indigo-100'
+                      : 'bg-slate-50 border-slate-200'
+                  }`}
+                />
+              ))}
+            </div>
+
+            {pinError && (
+              <p className="text-[10px] text-rose-500 font-extrabold mb-4 animate-bounce">{pinError}</p>
+            )}
+
+            {/* Grid Numpad */}
+            <div className="grid grid-cols-3 gap-2.5 max-w-[200px] mx-auto mb-5">
+              {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((num) => (
+                <button
+                  key={num}
+                  type="button"
+                  onClick={() => {
+                    if (enteredPin.length < 4) {
+                      setEnteredPin((prev) => prev + num);
+                      setPinError('');
+                    }
+                  }}
+                  className="h-11 w-11 rounded-full bg-slate-50 hover:bg-slate-100 active:bg-indigo-100 border border-slate-200/60 font-bold text-slate-700 text-sm transition-all"
+                >
+                  {num}
+                </button>
+              ))}
+              <button
+                type="button"
+                onClick={() => {
+                  setEnteredPin((prev) => prev.slice(0, -1));
+                  setPinError('');
+                }}
+                className="h-11 w-11 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 text-xs font-bold transition"
+              >
+                Hapus
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (enteredPin.length < 4) {
+                    setEnteredPin((prev) => prev + '0');
+                    setPinError('');
+                  }
+                }}
+                className="h-11 w-11 rounded-full bg-slate-50 hover:bg-slate-100 active:bg-indigo-100 border border-slate-200/60 font-bold text-slate-700 text-sm transition"
+              >
+                0
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const success = loginAsUser(pinTargetUser.id, enteredPin);
+                  if (success) {
+                    setPinTargetUser(null);
+                  } else {
+                    setPinError('PIN salah. Silakan coba lagi.');
+                    setEnteredPin('');
+                  }
+                }}
+                className="h-11 w-11 rounded-full bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-[10px] uppercase shadow-sm shadow-indigo-100 transition"
+              >
+                Masuk
+              </button>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setPinTargetUser(null)}
+              className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 text-[10px] font-bold rounded-xl transition"
+            >
+              Batal
+            </button>
+          </div>
+        </div>
+      )}
     </aside>
   );
 }

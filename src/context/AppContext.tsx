@@ -71,6 +71,7 @@ interface AppContextType {
   setIsOnline: (online: boolean) => void;
   syncCloud: () => Promise<void>;
   changeRole: (role: Staff['role']) => void;
+  loginAsUser: (staffId: string, pin: string) => boolean;
   changeBranch: (branchId: string) => void;
   
   // POS Cart Actions
@@ -104,8 +105,11 @@ interface AppContextType {
   deleteCustomers: (ids: string[]) => void;
   addSupplier: (supplier: Omit<Supplier, 'id' | 'createdAt'>) => void;
   addSupplierDebtPayment: (supplierId: string, amount: number) => void;
-  addStaff: (staff: Omit<Staff, 'id'>) => void;
+  addStaff: (staff: Omit<Staff, 'id'> & { pin?: string }) => void;
   updateStaffCommission: (id: string, rate: number) => void;
+  editStaff: (staff: Staff) => void;
+  deleteStaff: (id: string) => void;
+  setCurrentUser: React.Dispatch<React.SetStateAction<Staff>>;
   
   // Shifts
   openShift: (startingCash: number) => void;
@@ -273,7 +277,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const [branches] = useState<Branch[]>(INITIAL_BRANCHES);
   
-  const [staff, setStaff] = useState<Staff[]>(INITIAL_STAFF);
+  const [staff, setStaff] = useState<Staff[]>(() => {
+    const saved = localStorage.getItem('kdp_staff');
+    if (saved) return JSON.parse(saved);
+    return INITIAL_STAFF.map((s, idx) => ({
+      ...s,
+      pin: s.pin || String((idx + 1) * 1111) // Default PINs: 1111, 2222, etc.
+    }));
+  });
 
   const [promotions, setPromotions] = useState<Promotion[]>(() => {
     const saved = localStorage.getItem('kdp_promotions');
@@ -465,10 +476,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   });
   
   // Currenct contextual state
-  const [currentUser, setCurrentUser] = useState<Staff>(INITIAL_STAFF[2]); // Siti Aminah (Cashier 1)
+  const [currentUser, setCurrentUser] = useState<Staff>(() => {
+    const saved = localStorage.getItem('kdp_current_user');
+    if (saved) return JSON.parse(saved);
+    const savedStaff = localStorage.getItem('kdp_staff');
+    if (savedStaff) {
+      const parsed = JSON.parse(savedStaff);
+      return parsed.find((s: any) => s.role === 'CASHIER') || parsed[0];
+    }
+    return INITIAL_STAFF[2]; // Siti Aminah (Cashier 1)
+  });
   const [currentBranch, setCurrentBranch] = useState<Branch>(INITIAL_BRANCHES[0]); // Bandung Main
 
   // Sync state with localStorage
+  useEffect(() => {
+    localStorage.setItem('kdp_staff', JSON.stringify(staff));
+  }, [staff]);
+
+  useEffect(() => {
+    localStorage.setItem('kdp_current_user', JSON.stringify(currentUser));
+  }, [currentUser]);
+
   useEffect(() => {
     localStorage.setItem('kdp_products', JSON.stringify(products));
   }, [products]);
@@ -551,6 +579,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       };
       setAuditLogs((prev) => [newLog, ...prev]);
     }
+  };
+
+  const loginAsUser = (staffId: string, pin: string): boolean => {
+    const s = staff.find((u) => u.id === staffId);
+    if (s && (s.pin === pin || (!s.pin && pin === '1234'))) {
+      setCurrentUser(s);
+      addAuditLog('LOGIN_SUCCESS', 'AUTHENTICATION', `Karyawan ${s.name} berhasil login sebagai ${s.role}`);
+      return true;
+    }
+    addAuditLog('LOGIN_FAILED', 'AUTHENTICATION', `Gagal login ke akun karyawan ID: ${staffId}`);
+    return false;
   };
 
   const changeBranch = (branchId: string) => {
@@ -1075,6 +1114,31 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (s) {
       addAuditLog('UPDATE_COMMISSION', 'STAFF', `Updated commission rate for ${s.name} to ${rate}%`);
     }
+    pushStaffToGoogleSheets(updatedStaffList);
+  };
+
+  const editStaff = (updated: Staff) => {
+    let updatedStaffList: Staff[] = [];
+    setStaff((prev) => {
+      const list = prev.map((s) => (s.id === updated.id ? updated : s));
+      updatedStaffList = list;
+      return list;
+    });
+    if (currentUser.id === updated.id) {
+      setCurrentUser(updated);
+    }
+    addAuditLog('EDIT_STAFF', 'STAFF', `Updated details for staff: ${updated.name}`);
+    pushStaffToGoogleSheets(updatedStaffList);
+  };
+
+  const deleteStaff = (id: string) => {
+    let updatedStaffList: Staff[] = [];
+    setStaff((prev) => {
+      const list = prev.filter((s) => s.id !== id);
+      updatedStaffList = list;
+      return list;
+    });
+    addAuditLog('DELETE_STAFF', 'STAFF', `Deleted staff member with ID: ${id}`);
     pushStaffToGoogleSheets(updatedStaffList);
   };
 
@@ -2038,6 +2102,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setIsOnline,
         syncCloud,
         changeRole,
+        loginAsUser,
         changeBranch,
         
         addToCart,
@@ -2069,6 +2134,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         addSupplierDebtPayment,
         addStaff,
         updateStaffCommission,
+        editStaff,
+        deleteStaff,
+        setCurrentUser,
         
         openShift,
         closeShift,
