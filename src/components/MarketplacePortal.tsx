@@ -37,11 +37,13 @@ export default function MarketplacePortal() {
     addOnlineOrder,
     updateOnlineOrderStatus,
     orders,
-    currentBranch
+    currentBranch,
+    isLocked
   } = useApp();
 
   // Mode state: 'CUSTOMER' (storefront) or 'STAFF' (approvals queue)
   const [activePortalMode, setActivePortalMode] = useState<'CUSTOMER' | 'STAFF'>('CUSTOMER');
+  const effectivePortalMode = isLocked ? 'CUSTOMER' : activePortalMode;
 
   // CUSTOMER STATE
   const [searchQuery, setSearchQuery] = useState('');
@@ -216,37 +218,39 @@ export default function MarketplacePortal() {
         </div>
 
         {/* Custom Segmented Controller Tab */}
-        <div className="flex bg-slate-200/60 p-1 rounded-xl self-stretch sm:self-auto">
-          <button
-            id="mode-customer-btn"
-            onClick={() => setActivePortalMode('CUSTOMER')}
-            className={`flex-1 sm:flex-none px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
-              activePortalMode === 'CUSTOMER'
-                ? 'bg-white text-indigo-700 shadow-sm'
-                : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            <User className="h-3.5 w-3.5" />
-            <span>Mode Pelanggan (Store)</span>
-          </button>
-          <button
-            id="mode-staff-btn"
-            onClick={() => setActivePortalMode('STAFF')}
-            className={`flex-1 sm:flex-none px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 relative ${
-              activePortalMode === 'STAFF'
-                ? 'bg-white text-indigo-700 shadow-sm'
-                : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            <ShieldCheck className="h-3.5 w-3.5" />
-            <span>Persetujuan Admin</span>
-            {onlineOrders.filter(o => o.status === 'PENDING').length > 0 && (
-              <span className="absolute -top-1 -right-1 bg-rose-500 text-white text-[9px] h-4.5 min-w-4.5 px-1.5 rounded-full flex items-center justify-center font-bold border-2 border-white animate-bounce shadow-sm">
-                {onlineOrders.filter(o => o.status === 'PENDING').length}
-              </span>
-            )}
-          </button>
-        </div>
+        {!isLocked && (
+          <div className="flex bg-slate-200/60 p-1 rounded-xl self-stretch sm:self-auto">
+            <button
+              id="mode-customer-btn"
+              onClick={() => setActivePortalMode('CUSTOMER')}
+              className={`flex-1 sm:flex-none px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+                activePortalMode === 'CUSTOMER'
+                  ? 'bg-white text-indigo-700 shadow-sm'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <User className="h-3.5 w-3.5" />
+              <span>Mode Pelanggan (Store)</span>
+            </button>
+            <button
+              id="mode-staff-btn"
+              onClick={() => setActivePortalMode('STAFF')}
+              className={`flex-1 sm:flex-none px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 relative ${
+                activePortalMode === 'STAFF'
+                  ? 'bg-white text-indigo-700 shadow-sm'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <ShieldCheck className="h-3.5 w-3.5" />
+              <span>Persetujuan Admin</span>
+              {onlineOrders.filter(o => o.status === 'PENDING').length > 0 && (
+                <span className="absolute -top-1 -right-1 bg-rose-500 text-white text-[9px] h-4.5 min-w-4.5 px-1.5 rounded-full flex items-center justify-center font-bold border-2 border-white animate-bounce shadow-sm">
+                  {onlineOrders.filter(o => o.status === 'PENDING').length}
+                </span>
+              )}
+            </button>
+          </div>
+        )}
       </div>
 
       {/* PORTAL BODY */}
@@ -254,7 +258,7 @@ export default function MarketplacePortal() {
         {/* =======================================================
             MODE 1: CUSTOMER VIEW (STOREFRONT & CATALOG)
             ======================================================= */}
-        {activePortalMode === 'CUSTOMER' && (
+        {effectivePortalMode === 'CUSTOMER' && (
           <div className="flex-1 flex flex-col min-w-0">
             {/* Toolbar: Category Selector and Search Bar */}
             <div className="p-4 bg-slate-50/40 border-b border-slate-100 flex flex-col sm:flex-row gap-3">
@@ -380,7 +384,7 @@ export default function MarketplacePortal() {
         )}
 
         {/* Customer Sidebar: Cart Drawer on Desktop */}
-        {activePortalMode === 'CUSTOMER' && (
+        {effectivePortalMode === 'CUSTOMER' && (
           <div className="hidden lg:flex w-80 bg-slate-50 border-l border-slate-200 p-5 flex-col justify-between">
             {customerCart.length > 0 ? (
               <form onSubmit={handleCustomerCheckout} className="flex-1 flex flex-col justify-between h-full">
@@ -523,7 +527,7 @@ export default function MarketplacePortal() {
         {/* =======================================================
             MODE 2: STAFF VIEW (APPROVAL QUEUE)
             ======================================================= */}
-        {activePortalMode === 'STAFF' && (
+        {effectivePortalMode === 'STAFF' && (
           <div className="flex-1 flex flex-col lg:flex-row">
             {/* Orders list left pane */}
             <div className="flex-1 border-r border-slate-200 flex flex-col">

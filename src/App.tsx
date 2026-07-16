@@ -18,13 +18,21 @@ import AccountingView from './components/AccountingView';
 import ReportsView from './components/ReportsView';
 import StaffView from './components/StaffView';
 import SettingsView from './components/SettingsView';
-import { X, Printer, Menu } from 'lucide-react';
+import { X, Printer, Menu, ShoppingBag, Lock, Compass, LogIn } from 'lucide-react';
 import LockScreen from './components/LockScreen';
+import MarketplacePortal from './components/MarketplacePortal';
 
 function AppContent() {
   const { activeTab, setActiveTab, currentBranch, isLocked } = useApp();
   const [selectedReceipt, setSelectedReceipt] = useState<any | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [guestView, setGuestView] = useState<'marketplace' | 'login'>('marketplace');
+
+  React.useEffect(() => {
+    if (!isLocked) {
+      setGuestView('marketplace');
+    }
+  }, [isLocked]);
 
   const handleOpenReceipt = (order: any) => {
     setSelectedReceipt(order);
@@ -222,7 +230,53 @@ function AppContent() {
   };
 
   if (isLocked) {
-    return <LockScreen />;
+    if (guestView === 'marketplace') {
+      return (
+        <div className="min-h-screen bg-slate-50 flex flex-col font-sans select-none">
+          {/* Public Header for Customers */}
+          <header className="h-16 bg-white border-b border-slate-200/80 px-4 sm:px-8 flex items-center justify-between sticky top-0 z-50 shadow-sm flex-shrink-0">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 bg-indigo-600 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-indigo-500/20">
+                <Compass className="h-5 w-5 animate-spin-slow" />
+              </div>
+              <div className="text-left">
+                <h1 className="text-sm font-black text-slate-800 tracking-wider uppercase">Kedai Kepanduan</h1>
+                <p className="text-[10px] text-indigo-600 font-extrabold uppercase tracking-widest">Klaten Branch</p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-4">
+              <button
+                onClick={() => setGuestView('login')}
+                className="px-4 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold rounded-xl transition-all duration-200 flex items-center gap-2 border border-indigo-100 shadow-sm"
+              >
+                <LogIn className="h-3.5 w-3.5" />
+                <span>Akses Admin / Karyawan</span>
+              </button>
+            </div>
+          </header>
+
+          {/* Full Screen Marketplace */}
+          <div className="flex-1 p-4 sm:p-6 max-w-7xl mx-auto w-full overflow-y-auto">
+            <MarketplacePortal />
+          </div>
+
+          {/* Public Footer */}
+          <footer className="bg-slate-950 text-slate-400 py-6 px-4 text-center text-xs border-t border-slate-900 mt-auto flex-shrink-0">
+            <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
+              <p>2026 © Kedai Kepanduan Klaten. Bakti Pramuka Untuk Indonesia.</p>
+              <div className="flex gap-4 text-[11px] font-semibold text-slate-500">
+                <span>Jam Buka: 08:00 - 21:00 WIB</span>
+                <span>•</span>
+                <span>Alamat: Jl. Pemuda No. 12, Klaten</span>
+              </div>
+            </div>
+          </footer>
+        </div>
+      );
+    } else {
+      return <LockScreen onBackToMarketplace={() => setGuestView('marketplace')} />;
+    }
   }
 
   return (

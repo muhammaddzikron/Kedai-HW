@@ -17,7 +17,11 @@ import {
   Grid
 } from 'lucide-react';
 
-export default function LockScreen() {
+interface LockScreenProps {
+  onBackToMarketplace?: () => void;
+}
+
+export default function LockScreen({ onBackToMarketplace }: LockScreenProps) {
   const { staff, loginAsUser, loginWithEmailPassword } = useApp();
   
   // Tabs: 'PIN' | 'PASSWORD'
@@ -123,9 +127,19 @@ export default function LockScreen() {
             <p className="text-[10px] text-indigo-400 font-extrabold uppercase tracking-widest">Core POS Sync System</p>
           </div>
         </div>
-        <div className="flex items-center gap-2 bg-slate-900/90 px-4 py-2 rounded-2xl border border-slate-800">
-          <Lock className="h-3.5 w-3.5 text-indigo-400 animate-pulse" />
-          <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest">Sistem Terkunci</span>
+        <div className="flex items-center gap-3">
+          {onBackToMarketplace && (
+            <button
+              onClick={onBackToMarketplace}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 hover:bg-slate-850 hover:text-white border border-slate-800 text-slate-300 text-[11px] font-bold rounded-xl transition-all duration-200"
+            >
+              <span>← Kembali ke Marketplace</span>
+            </button>
+          )}
+          <div className="flex items-center gap-2 bg-slate-900/90 px-4 py-2 rounded-2xl border border-slate-800">
+            <Lock className="h-3.5 w-3.5 text-indigo-400 animate-pulse" />
+            <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest">Sistem Terkunci</span>
+          </div>
         </div>
       </div>
 
