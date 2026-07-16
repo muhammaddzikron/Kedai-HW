@@ -1,0 +1,6 @@
+{
+  "name": "Kasir Kedai Kepanduan",
+  "description": "Aplikasi kasir web (POS) tingkat perusahaan dengan sinkronisasi offline-first, manajemen stok, laporan keuangan, dan dashboard kasir.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
