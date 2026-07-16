@@ -6716,17 +6716,75 @@ export const INITIAL_ACCOUNT_CODES: AccountCode[] = [
 ];
 
 export const INITIAL_BRANCHES: Branch[] = [
-  { id: 'b1', name: 'Kedai Kepanduan Bandung (Core)', address: 'Kwarda Jabar, Jl. Cikutra No. 276, Bandung', phone: '022-4201234', isActive: true },
-  { id: 'b2', name: 'Kedai Kepanduan Jakarta Agency', address: 'Kwarnas Pramuka, Jl. Medan Merdeka Timur No. 6, Jakarta', phone: '021-3501234', isActive: true },
-  { id: 'b3', name: 'Kedai Kepanduan Yogyakarta Hub', address: 'Kwarda DIY, Kompleks Bumi Perkemahan Babarsari, Sleman', phone: '0274-484123', isActive: false }
+  { id: 'b1', name: 'Kedai Kepanduan Klaten', address: 'Jl. Pemuda No. 12, Klaten, Jawa Tengah', phone: '0272-321234', isActive: true }
 ];
 
 export const INITIAL_STAFF: Staff[] = [
-  { id: 'st1', name: 'Kak Kakang (Owner)', role: 'OWNER', phone: '081111222333', email: 'kakang@kepanduan.id', commissionRate: 0, attendanceStatus: 'PRESENT', basicSalary: 4500000 },
-  { id: 'st2', name: 'Rahmat Hidayat (Manager)', role: 'MANAGER', phone: '082222333444', email: 'rahmat.mgr@kepanduan.id', commissionRate: 2, attendanceStatus: 'PRESENT', basicSalary: 3200000 },
-  { id: 'st3', name: 'Siti Aminah (Cashier 1)', role: 'CASHIER', phone: '083333444555', email: 'siti.cashier@kepanduan.id', commissionRate: 1, attendanceStatus: 'PRESENT', basicSalary: 2100000 },
-  { id: 'st4', name: 'Budi Hartono (Warehouse)', role: 'WAREHOUSE', phone: '084444555666', email: 'budi.wh@kepanduan.id', commissionRate: 0.5, attendanceStatus: 'PRESENT', basicSalary: 2000000 },
-  { id: 'st5', name: 'Agus Salim (Accountant)', role: 'ACCOUNTANT', phone: '085555666777', email: 'agus.act@kepanduan.id', commissionRate: 0, attendanceStatus: 'ABSENT', basicSalary: 2500000 }
+  {
+    id: 'st1',
+    name: 'Muhammad Dzikron',
+    role: 'ADMIN',
+    phone: '081226854000',
+    email: 'admin@kedaihw.com',
+    commissionRate: 0,
+    attendanceStatus: 'PRESENT',
+    basicSalary: 1000000,
+    currentShiftId: 'Tidak Ada Shift',
+    pin: '1111',
+    password: 'adnimtunimku12**'
+  },
+  {
+    id: 'st2',
+    name: 'Syeckhan Afif (CS1)',
+    role: 'CUSTOMER SERVICE' as any,
+    phone: '082222333444',
+    email: 'cs1@kedaihw.com',
+    commissionRate: 0,
+    attendanceStatus: 'PRESENT',
+    basicSalary: 1000000,
+    currentShiftId: 'Tidak Ada Shift',
+    pin: '2222',
+    password: 'cs1123'
+  },
+  {
+    id: 'st3',
+    name: 'Alda Putri (CS2)',
+    role: 'CUSTOMER SERVICE' as any,
+    phone: '083333444555',
+    email: 'cs2@kedaihw.com',
+    commissionRate: 0,
+    attendanceStatus: 'PRESENT',
+    basicSalary: 1000000,
+    currentShiftId: 'Tidak Ada Shift',
+    pin: '3333',
+    password: 'cs2123'
+  },
+  {
+    id: 'st4',
+    name: 'Elisa Cahya (CS3)',
+    role: 'CUSTOMER SERVICE' as any,
+    phone: '084444555666',
+    email: 'cs3@kedaihw.com',
+    commissionRate: 0,
+    attendanceStatus: 'PRESENT',
+    basicSalary: 1000000,
+    currentShiftId: 'Tidak Ada Shift',
+    pin: '4444',
+    password: 'cs3123'
+  },
+  {
+    id: 'st5',
+    name: 'Putri Febriana (CS4)',
+    role: 'CUSTOMER SERVICE' as any,
+    phone: '085555666777',
+    email: 'cs4@kedaihw.com',
+    commissionRate: 0,
+    attendanceStatus: 'PRESENT',
+    basicSalary: 1000000,
+    currentShiftId: 'Tidak Ada Shift',
+    pin: '5555',
+    password: 'cs4123'
+  }
 ];
 
 export const INITIAL_PROMOTIONS: Promotion[] = [

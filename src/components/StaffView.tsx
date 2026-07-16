@@ -23,7 +23,8 @@ import {
   FileSpreadsheet,
   Award,
   ChevronRight,
-  ShoppingBag
+  ShoppingBag,
+  RefreshCw
 } from 'lucide-react';
 import { Staff, Order } from '../types';
 
@@ -36,9 +37,11 @@ export default function StaffView() {
     updateStaffCommission,
     addAuditLog,
     orders,
-    konveksiOrders
+    konveksiOrders,
+    pullStaffFromGoogleSheets
   } = useApp();
 
+  const [loadingSync, setLoadingSync] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
@@ -160,22 +163,44 @@ export default function StaffView() {
           <p className="text-xs text-slate-500">Kelola roster akun karyawan, atur komisi penjualan kasir, otorisasi PIN login, dan pantau log absensi.</p>
         </div>
 
-        <button
-          onClick={() => {
-            setName('');
-            setPhone('');
-            setEmail('');
-            setRole('CASHIER');
-            setCommissionRate('2');
-            setSalary('1800000');
-            setPin(Math.floor(1000 + Math.random() * 9000).toString()); // Pre-fill with random 4 digits
-            setShowAddModal(true);
-          }}
-          className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 transition shadow-sm"
-        >
-          <Plus className="h-4 w-4" />
-          <span>Tambah Staff Baru</span>
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            disabled={loadingSync}
+            onClick={async () => {
+              setLoadingSync(true);
+              try {
+                await pullStaffFromGoogleSheets();
+                alert('Berhasil menyinkronkan data karyawan langsung dari Google Sheets!');
+              } catch (err: any) {
+                alert(`Gagal menyinkronkan data: ${err.message || err}`);
+              } finally {
+                setLoadingSync(false);
+              }
+            }}
+            className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-800/50 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 transition shadow-sm cursor-pointer"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${loadingSync ? 'animate-spin' : ''}`} />
+            <span>{loadingSync ? 'Menyinkronkan...' : 'Sinkron Google Sheet'}</span>
+          </button>
+
+          <button
+            onClick={() => {
+              setName('');
+              setPhone('');
+              setEmail('');
+              setRole('CASHIER');
+              setCommissionRate('2');
+              setSalary('1800000');
+              setPin(Math.floor(1000 + Math.random() * 9000).toString()); // Pre-fill with random 4 digits
+              setShowAddModal(true);
+            }}
+            className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 transition shadow-sm"
+          >
+            <Plus className="h-4 w-4" />
+            <span>Tambah Staff Baru</span>
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">

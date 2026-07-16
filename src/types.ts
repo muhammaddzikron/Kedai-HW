@@ -196,7 +196,7 @@ export interface Branch {
 export interface Staff {
   id: string;
   name: string;
-  role: 'OWNER' | 'ADMIN' | 'CASHIER' | 'WAREHOUSE' | 'MANAGER' | 'SUPERVISOR' | 'ACCOUNTANT';
+  role: 'OWNER' | 'ADMIN' | 'CASHIER' | 'WAREHOUSE' | 'MANAGER' | 'SUPERVISOR' | 'ACCOUNTANT' | 'CUSTOMER SERVICE';
   phone: string;
   email: string;
   commissionRate: number; // percentage
@@ -204,6 +204,7 @@ export interface Staff {
   currentShiftId?: string;
   basicSalary?: number;
   pin?: string; // security code for login
+  password?: string; // password for standard email login
 }
 
 export interface Promotion {

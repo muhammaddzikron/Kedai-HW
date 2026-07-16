@@ -19,9 +19,10 @@ import ReportsView from './components/ReportsView';
 import StaffView from './components/StaffView';
 import SettingsView from './components/SettingsView';
 import { X, Printer, Menu } from 'lucide-react';
+import LockScreen from './components/LockScreen';
 
 function AppContent() {
-  const { activeTab, setActiveTab, currentBranch } = useApp();
+  const { activeTab, setActiveTab, currentBranch, isLocked } = useApp();
   const [selectedReceipt, setSelectedReceipt] = useState<any | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
@@ -101,9 +102,9 @@ function AppContent() {
         </head>
         <body>
           <div class="text-center" style="margin-bottom: 8px;">
-            <div class="font-bold text-lg">KEDAI KEPANDUAN CORE</div>
-            <div class="text-xs">Jl. Cikutra No. 276, Bandung</div>
-            <div class="text-xs">Tlp: 0812-3456-789</div>
+            <div class="font-bold text-lg">KEDAI KEPANDUAN KLATEN</div>
+            <div class="text-xs">Jl. Pemuda No. 12, Klaten, Jawa Tengah</div>
+            <div class="text-xs">Tlp: 0272-321234</div>
           </div>
 
           <div class="space-y-0.5 text-xs" style="margin-bottom: 6px;">
@@ -220,6 +221,10 @@ function AppContent() {
     }
   };
 
+  if (isLocked) {
+    return <LockScreen />;
+  }
+
   return (
     <div className="flex h-screen bg-slate-50 overflow-hidden font-sans">
       {/* Sidebar Navigation */}
@@ -302,9 +307,9 @@ function AppContent() {
             {/* Simulated Thermal Paper Struk */}
             <div className="w-full bg-amber-50/20 border border-amber-100 p-4 rounded-xl text-left font-mono text-[10px] text-slate-800 space-y-3 shadow-inner">
               <div className="text-center space-y-1 border-b border-dashed border-slate-300 pb-2">
-                <span className="font-extrabold text-xs block text-slate-950">KEDAI KEPANDUAN CORE</span>
-                <span className="block text-slate-400">Jl. Cikutra No. 276, Bandung</span>
-                <span className="block text-slate-400">Tlp: 0812-3456-789</span>
+                <span className="font-extrabold text-xs block text-slate-950">KEDAI KEPANDUAN KLATEN</span>
+                <span className="block text-slate-400">Jl. Pemuda No. 12, Klaten, Jawa Tengah</span>
+                <span className="block text-slate-400">Tlp: 0272-321234</span>
               </div>
 
               <div className="space-y-0.5 text-slate-500">

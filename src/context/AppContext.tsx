@@ -65,6 +65,8 @@ interface AppContextType {
   konveksiOrders: KonveksiOrder[];
   addKonveksiOrder: (order: Omit<KonveksiOrder, 'id' | 'orderNo'>) => void;
   updateKonveksiOrderStatus: (id: string, status: KonveksiOrder['status']) => void;
+  addOnlineOrder: (order: Omit<OnlineOrder, 'id' | 'orderNo' | 'date'>) => void;
+  updateOnlineOrderStatus: (id: string, status: OnlineOrder['status']) => void;
   
   // Tab Management
   setActiveTab: (tab: string) => void;
@@ -72,6 +74,7 @@ interface AppContextType {
   syncCloud: () => Promise<void>;
   changeRole: (role: Staff['role']) => void;
   loginAsUser: (staffId: string, pin: string) => boolean;
+  loginWithEmailPassword: (email: string, password: string) => boolean;
   changeBranch: (branchId: string) => void;
   
   // POS Cart Actions
@@ -110,6 +113,9 @@ interface AppContextType {
   editStaff: (staff: Staff) => void;
   deleteStaff: (id: string) => void;
   setCurrentUser: React.Dispatch<React.SetStateAction<Staff>>;
+  isLocked: boolean;
+  setIsLocked: React.Dispatch<React.SetStateAction<boolean>>;
+  logout: () => void;
   
   // Shifts
   openShift: (startingCash: number) => void;
@@ -135,6 +141,7 @@ interface AppContextType {
   pushProductsToGoogleSheets: (currentProducts?: Product[]) => Promise<boolean>;
   pushCustomersToGoogleSheets: (currentCustomers?: Customer[]) => Promise<boolean>;
   pullCustomersFromGoogleSheets: () => Promise<void>;
+  pullStaffFromGoogleSheets: () => Promise<void>;
 
   purchaseOrders: PurchaseOrder[];
   setPurchaseOrders: React.Dispatch<React.SetStateAction<PurchaseOrder[]>>;
@@ -279,10 +286,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   
   const [staff, setStaff] = useState<Staff[]>(() => {
     const saved = localStorage.getItem('kdp_staff');
-    if (saved) return JSON.parse(saved);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (parsed.some((s: any) => s.name.includes('Kakang') || s.name.includes('Owner'))) {
+        const resetStaff = INITIAL_STAFF.map((s, idx) => ({
+          ...s,
+          pin: s.pin || String((idx + 1) * 1111),
+          password: s.password || (s.email ? s.email.split('@')[0] + '123' : 'admin123')
+        }));
+        localStorage.setItem('kdp_staff', JSON.stringify(resetStaff));
+        return resetStaff;
+      }
+      return parsed;
+    }
     return INITIAL_STAFF.map((s, idx) => ({
       ...s,
-      pin: s.pin || String((idx + 1) * 1111) // Default PINs: 1111, 2222, etc.
+      pin: s.pin || String((idx + 1) * 1111), // Default PINs: 1111, 2222, etc.
+      password: s.password || (s.email ? s.email.split('@')[0] + '123' : 'admin123') // Default passwords: kakang123, siti.cashier123, etc.
     }));
   });
 
@@ -487,6 +507,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return INITIAL_STAFF[2]; // Siti Aminah (Cashier 1)
   });
   const [currentBranch, setCurrentBranch] = useState<Branch>(INITIAL_BRANCHES[0]); // Bandung Main
+  const [isLocked, setIsLocked] = useState<boolean>(() => {
+    return localStorage.getItem('kdp_is_locked') === 'true';
+  });
 
   // Sync state with localStorage
   useEffect(() => {
@@ -496,6 +519,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     localStorage.setItem('kdp_current_user', JSON.stringify(currentUser));
   }, [currentUser]);
+
+  useEffect(() => {
+    localStorage.setItem('kdp_is_locked', String(isLocked));
+  }, [isLocked]);
 
   useEffect(() => {
     localStorage.setItem('kdp_products', JSON.stringify(products));
@@ -585,11 +612,50 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const s = staff.find((u) => u.id === staffId);
     if (s && (s.pin === pin || (!s.pin && pin === '1234'))) {
       setCurrentUser(s);
+      setIsLocked(false);
       addAuditLog('LOGIN_SUCCESS', 'AUTHENTICATION', `Karyawan ${s.name} berhasil login sebagai ${s.role}`);
       return true;
     }
     addAuditLog('LOGIN_FAILED', 'AUTHENTICATION', `Gagal login ke akun karyawan ID: ${staffId}`);
     return false;
+  };
+
+  const loginWithEmailPassword = (email: string, password: string): boolean => {
+    // Custom check for Super Admin credential requested by user:
+    // user: admin, pass: adnimtunimku12**
+    const normalizedEmail = email.toLowerCase().trim();
+    if (
+      (normalizedEmail === 'admin' || 
+       normalizedEmail === 'admin@kedaihw.com' || 
+       normalizedEmail === 'admin@kepanduan.id') &&
+      password === 'adnimtunimku12**'
+    ) {
+      const superAdmin = staff.find(u => u.id === 'st1' || u.role === 'ADMIN') || staff[0];
+      if (superAdmin) {
+        setCurrentUser(superAdmin);
+        setIsLocked(false);
+        addAuditLog('LOGIN_SUCCESS', 'AUTHENTICATION', `Super Admin (${superAdmin.name}) berhasil login dengan username/email 'admin'`);
+        return true;
+      }
+    }
+
+    const s = staff.find((u) => u.email.toLowerCase() === email.toLowerCase());
+    if (s) {
+      const expectedPassword = s.password || (s.email ? s.email.split('@')[0] + '123' : 'admin123');
+      if (password === expectedPassword) {
+        setCurrentUser(s);
+        setIsLocked(false);
+        addAuditLog('LOGIN_SUCCESS', 'AUTHENTICATION', `Karyawan ${s.name} berhasil login dengan email sebagai ${s.role}`);
+        return true;
+      }
+    }
+    addAuditLog('LOGIN_FAILED', 'AUTHENTICATION', `Gagal login dengan email: ${email}`);
+    return false;
+  };
+
+  const logout = () => {
+    setIsLocked(true);
+    addAuditLog('LOGOUT', 'AUTHENTICATION', `Karyawan ${currentUser.name} melakukan logout.`);
   };
 
   const changeBranch = (branchId: string) => {
@@ -1162,6 +1228,105 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const found = konveksiOrders.find((o) => o.id === id);
     if (found) {
       addAuditLog('UPDATE_KONVEKSI_STATUS', 'KONVEKSI', `Status pesanan konveksi ${found.orderNo} diupdate ke: ${status}`);
+    }
+  };
+
+  const addOnlineOrder = (oo: Omit<OnlineOrder, 'id' | 'orderNo' | 'date'>) => {
+    const nextNum = onlineOrders.length + 1;
+    const formattedNum = String(nextNum).padStart(4, '0');
+    const orderNo = `ONL-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${formattedNum}`;
+    const newOrder: OnlineOrder = {
+      ...oo,
+      id: `oo-${Date.now()}`,
+      orderNo,
+      date: new Date().toISOString()
+    };
+    setOnlineOrders((prev) => [newOrder, ...prev]);
+    addAuditLog('ADD_ONLINE_ORDER', 'MARKETPLACE', `Transaksi mandiri dibuat oleh Customer: ${oo.customerName} sebesar Rp ${oo.total.toLocaleString()}`);
+  };
+
+  const updateOnlineOrderStatus = (id: string, status: OnlineOrder['status']) => {
+    setOnlineOrders((prev) =>
+      prev.map((o) => (o.id === id ? { ...o, status } : o))
+    );
+    const found = onlineOrders.find((o) => o.id === id);
+    if (found) {
+      addAuditLog('UPDATE_ONLINE_STATUS', 'MARKETPLACE', `Pesanan online ${found.orderNo} diupdate ke status: ${status}`);
+      
+      if ((status === 'PROCESSING' || status === 'DELIVERED') && !orders.some(o => o.holdName === found.orderNo)) {
+        let customerObj = customers.find(c => c.name.toLowerCase() === found.customerName.toLowerCase() || c.phone === found.customerPhone);
+        
+        const itemsList: Order['items'] = found.items.map(item => {
+          const matchingProd = products.find(p => p.name.toLowerCase() === item.productName.toLowerCase());
+          return {
+            productId: matchingProd?.id || `p-unknown-${Date.now()}`,
+            productName: item.productName,
+            quantity: item.quantity,
+            price: item.price,
+            subtotal: item.subtotal,
+            modifiers: []
+          };
+        });
+
+        const newPosOrder: Order = {
+          id: `inv-onl-${Date.now()}`,
+          orderNo: `INV-ONL-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${Math.floor(1000 + Math.random() * 9000)}`,
+          date: new Date().toISOString(),
+          customerId: customerObj?.id,
+          customerName: found.customerName,
+          customerPhone: found.customerPhone,
+          items: itemsList,
+          subtotal: found.total,
+          tax: 0,
+          serviceCharge: 0,
+          discount: 0,
+          total: found.total,
+          amountPaid: found.total,
+          change: 0,
+          paymentMethod: found.paymentGateway === 'MIDTRANS' ? 'QRIS' : 'CASH',
+          paymentStatus: found.paymentGateway === 'MIDTRANS' ? 'PAID' : 'UNPAID',
+          cashierId: currentUser.id,
+          cashierName: currentUser.name,
+          branchId: currentBranch.id,
+          branchName: currentBranch.name,
+          shiftId: activeShift?.id || 'offline-shift',
+          isHold: false,
+          holdName: found.orderNo,
+          createdAt: new Date().toISOString()
+        };
+
+        setOrders(prev => [newPosOrder, ...prev]);
+
+        setProducts(prev =>
+          prev.map(p => {
+            const match = found.items.find(item => item.productName.toLowerCase() === p.name.toLowerCase());
+            if (match) {
+              return { ...p, stock: Math.max(0, p.stock - match.quantity) };
+            }
+            return p;
+          })
+        );
+
+        found.items.forEach((item) => {
+          const matchingProd = products.find(p => p.name.toLowerCase() === p.name.toLowerCase());
+          if (matchingProd) {
+            const newMovement: InventoryMovement = {
+              id: `mvt-onl-${Date.now()}-${matchingProd.id}`,
+              productId: matchingProd.id,
+              productName: matchingProd.name,
+              date: new Date().toISOString(),
+              type: 'OUT',
+              qty: item.quantity,
+              referenceNo: found.orderNo,
+              warehouseName: currentBranch.name,
+              notes: `Persetujuan Order Marketplace (${found.orderNo})`
+            };
+            setInventoryMovements(prev => [newMovement, ...prev]);
+          }
+        });
+
+        addAuditLog('APPROVE_ONLINE_ORDER', 'MARKETPLACE', `Pesanan online ${found.orderNo} disetujui & dikonversi menjadi invoice penjualan: ${newPosOrder.orderNo}`);
+      }
     }
   };
 
@@ -1921,6 +2086,73 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  const pullStaffFromGoogleSheets = async () => {
+    if (!googleAppsScriptUrl || !googleAppsScriptUrl.includes('script.google.com')) {
+      throw new Error('URL Google Apps Script belum dikonfigurasi di Pengaturan.');
+    }
+
+    setIsSyncing(true);
+    addAuditLog('SYNC_STAFF_START', 'SYSTEM', 'Memulai sinkronisasi data karyawan dari Google Sheets');
+
+    try {
+      const response = await fetch(`${googleAppsScriptUrl}?type=staff`);
+      if (!response.ok) {
+        throw new Error('Gagal menghubungi server Apps Script.');
+      }
+
+      const json = await response.json();
+      if (json.status === 'success' && Array.isArray(json.data)) {
+        const importedStaff: Staff[] = json.data.map((row: any, idx: number) => {
+          const email = row["Email"] || row["email"] || "";
+          const id = row["ID Staff"] || row["id"] || `st-${idx}-${Date.now()}`;
+          const name = row["Nama Staff"] || row["name"] || `Staff ${idx}`;
+          const role = (row["Role"] || row["role"] || "CASHIER") as any;
+          
+          let pin = row["PIN"] || row["pin"];
+          if (!pin) {
+            pin = String((idx + 1) * 1111);
+          }
+          
+          let password = row["Password"] || row["password"];
+          if (!password) {
+            if (email.toLowerCase() === 'admin@kedaihw.com' || name.toLowerCase().includes('dzikron')) {
+              password = 'adnimtunimku12**';
+              pin = '1111';
+            } else {
+              password = email ? email.split('@')[0] + '123' : 'staff123';
+            }
+          }
+
+          return {
+            id,
+            name,
+            role: role,
+            phone: String(row["Telepon"] || row["phone"] || ""),
+            email,
+            commissionRate: parseFloat(row["Komisi (%)"] || row["commissionRate"] || "0") || 0,
+            attendanceStatus: (row["Status Kehadiran"] || row["attendanceStatus"] || "OFF") as any,
+            basicSalary: parseFloat(row["Gaji Pokok"] || row["basicSalary"] || "0") || 0,
+            currentShiftId: row["Shift Aktif"] || row["currentShiftId"] || undefined,
+            pin,
+            password
+          };
+        });
+
+        setStaff(importedStaff);
+        localStorage.setItem('kdp_staff', JSON.stringify(importedStaff));
+        addAuditLog('SYNC_STAFF_SUCCESS', 'SYSTEM', `Berhasil menyinkronkan ${importedStaff.length} data karyawan dari Google Sheets!`);
+      } else {
+        throw new Error(json.message || 'Format data Apps Script tidak valid.');
+      }
+    } catch (err: any) {
+      console.error('Error pulling staff from Google Sheets:', err);
+      addAuditLog('SYNC_STAFF_FAILED', 'SYSTEM', `Gagal menyinkronkan karyawan: ${err.message || err}`);
+      throw err;
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
   const pushOrderToGoogleSheets = async (order: Order) => {
     if (!googleAppsScriptUrl || !googleAppsScriptUrl.includes('script.google.com')) return false;
     try {
@@ -2097,12 +2329,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         konveksiOrders,
         addKonveksiOrder,
         updateKonveksiOrderStatus,
+        addOnlineOrder,
+        updateOnlineOrderStatus,
         
         setActiveTab,
         setIsOnline,
         syncCloud,
         changeRole,
         loginAsUser,
+        loginWithEmailPassword,
         changeBranch,
         
         addToCart,
@@ -2137,6 +2372,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         editStaff,
         deleteStaff,
         setCurrentUser,
+        isLocked,
+        setIsLocked,
+        logout,
         
         openShift,
         closeShift,
@@ -2156,6 +2394,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         pushProductsToGoogleSheets,
         pushCustomersToGoogleSheets,
         pullCustomersFromGoogleSheets,
+        pullStaffFromGoogleSheets,
 
         purchaseOrders,
         setPurchaseOrders,

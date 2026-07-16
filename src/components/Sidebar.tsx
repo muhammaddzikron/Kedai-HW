@@ -31,6 +31,7 @@ import {
   MapPin,
   ChevronDown,
   Scissors,
+  LogOut,
   X
 } from 'lucide-react';
 
@@ -53,7 +54,8 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
     currentBranch,
     changeBranch,
     branches,
-    staff
+    staff,
+    logout
   } = useApp();
 
   const [showRoleMenu, setShowRoleMenu] = useState(false);
@@ -142,39 +144,13 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
       </div>
 
       {/* Network / Active Branch Selector */}
-      <div className="px-4 py-2 bg-slate-50 border-b border-slate-200 relative">
-        <button
-          id="branch-selector"
-          onClick={() => setShowBranchMenu(!showBranchMenu)}
-          className="w-full flex items-center justify-between text-left py-1 text-xs font-semibold text-slate-600 hover:text-slate-900 transition"
-        >
+      <div className="px-4 py-2 bg-slate-50 border-b border-slate-200">
+        <div className="w-full flex items-center text-left py-1 text-xs font-semibold text-slate-600">
           <span className="flex items-center gap-1.5 truncate">
             <MapPin className="h-3.5 w-3.5 text-indigo-500 flex-shrink-0" />
             <span className="truncate">{currentBranch.name}</span>
           </span>
-          <ChevronDown className="h-3 w-3 flex-shrink-0 ml-1 text-slate-400" />
-        </button>
-
-        {showBranchMenu && (
-          <div className="absolute left-3 right-3 top-9 z-50 bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden py-1">
-            {branches.map((b) => (
-              <button
-                key={b.id}
-                onClick={() => {
-                  changeBranch(b.id);
-                  setShowBranchMenu(false);
-                }}
-                className={`w-full text-left px-3 py-1.5 text-xs transition ${
-                  currentBranch.id === b.id
-                    ? 'bg-indigo-50 text-indigo-700 font-semibold'
-                    : 'hover:bg-slate-50 text-slate-500 hover:text-slate-800'
-                }`}
-              >
-                {b.name}
-              </button>
-            ))}
-          </div>
-        )}
+        </div>
       </div>
 
       {/* Navigation Menus */}
@@ -245,13 +221,13 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
       </div>
 
       {/* User Session Profile & Role Switcher */}
-      <div className="p-3 bg-slate-50 border-t border-slate-200 relative">
+      <div className="p-3 bg-slate-50 border-t border-slate-200 relative flex items-center gap-1.5">
         <button
           id="user-profile-toggle"
           onClick={() => setShowRoleMenu(!showRoleMenu)}
-          className="w-full flex items-center gap-2 text-left p-1 rounded-xl hover:bg-slate-100 transition"
+          className="flex-1 flex items-center gap-2 text-left p-1 rounded-xl hover:bg-slate-100 transition min-w-0"
         >
-          <div className="h-8 w-8 bg-slate-200 border border-slate-300 rounded-full flex items-center justify-center text-slate-700 font-bold text-xs uppercase shadow-inner">
+          <div className="h-8 w-8 bg-slate-200 border border-slate-300 rounded-full flex items-center justify-center text-slate-700 font-bold text-xs uppercase shadow-inner flex-shrink-0">
             {currentUser.name.slice(0, 2)}
           </div>
           <div className="flex-1 min-w-0">
@@ -262,7 +238,15 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
               {currentUser.role}
             </span>
           </div>
-          <ChevronDown className="h-3.5 w-3.5 text-slate-400" />
+          <ChevronDown className="h-3.5 w-3.5 text-slate-400 flex-shrink-0" />
+        </button>
+
+        <button
+          onClick={logout}
+          className="p-2 text-rose-500 hover:text-rose-700 hover:bg-rose-50 active:bg-rose-100 rounded-xl transition border border-transparent hover:border-rose-100 flex-shrink-0"
+          title="Logout (Kunci Sistem)"
+        >
+          <LogOut className="h-4 w-4" />
         </button>
 
         {showRoleMenu && (
