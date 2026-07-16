@@ -24,7 +24,8 @@ import {
   History,
   Notebook,
   AlertCircle,
-  HelpCircle
+  HelpCircle,
+  Truck
 } from 'lucide-react';
 
 export default function PosView({ onCheckoutSuccess }: { onCheckoutSuccess: (order: any) => void }) {
@@ -54,10 +55,11 @@ export default function PosView({ onCheckoutSuccess }: { onCheckoutSuccess: (ord
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('Semua');
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const [customerSearchQuery, setCustomerSearchQuery] = useState('');
   const [promoCode, setPromoCode] = useState('');
   const [appliedPromo, setAppliedPromo] = useState<Promotion | null>(null);
   const [customCartDiscount, setCustomCartDiscount] = useState(0); // overall percentage
-  const [tableNo, setTableNo] = useState('');
+  const [shippingFee, setShippingFee] = useState<number>(0);
   
   // Modals / Overlays
   const [selectedProductForOptions, setSelectedProductForOptions] = useState<Product | null>(null);
@@ -100,6 +102,17 @@ export default function PosView({ onCheckoutSuccess }: { onCheckoutSuccess: (ord
     });
   }, [products, searchQuery, selectedCategory]);
 
+  // Filtered Customers based on search query
+  const filteredCustomers = useMemo(() => {
+    if (!customerSearchQuery.trim()) return customers;
+    const query = customerSearchQuery.toLowerCase();
+    return customers.filter((c) => 
+      c.name.toLowerCase().includes(query) ||
+      c.phone.includes(query) ||
+      c.email.toLowerCase().includes(query)
+    );
+  }, [customers, customerSearchQuery]);
+
   // Subtotal calculations
   const totals = useMemo(() => {
     let subtotal = 0;
@@ -125,18 +138,15 @@ export default function PosView({ onCheckoutSuccess }: { onCheckoutSuccess: (ord
       discountValue = Math.round(subtotal * (customCartDiscount / 100));
     }
 
-    const taxValue = Math.round((subtotal - discountValue) * 0.1); // 10% tax
-    const serviceValue = Math.round((subtotal - discountValue) * 0.05); // 5% service charge
-    const finalTotal = subtotal - discountValue + taxValue + serviceValue;
+    const finalTotal = subtotal - discountValue + shippingFee;
 
     return {
       subtotal,
       discount: discountValue,
-      tax: taxValue,
-      service: serviceValue,
+      shippingFee,
       total: finalTotal
     };
-  }, [cart, appliedPromo, customCartDiscount]);
+  }, [cart, appliedPromo, customCartDiscount, shippingFee]);
 
   // Cash change calculation
   const cashChange = useMemo(() => {
@@ -188,7 +198,7 @@ export default function PosView({ onCheckoutSuccess }: { onCheckoutSuccess: (ord
     const createdOrder = checkoutCart(selectedPaymentMethod, selectedPaymentMethod === 'CASH' ? parsedCash : totals.total, {
       customerId: selectedCustomer?.id,
       discount: totals.discount,
-      tableNo: tableNo || undefined
+      shippingFee: shippingFee
     });
 
     // Reset local checkout selections
@@ -196,9 +206,9 @@ export default function PosView({ onCheckoutSuccess }: { onCheckoutSuccess: (ord
     setSelectedCustomer(null);
     setAppliedPromo(null);
     setPromoCode('');
-    setTableNo('');
     setCashReceived('');
     setCustomCartDiscount(0);
+    setShippingFee(0);
 
     onCheckoutSuccess(createdOrder);
   };
@@ -464,36 +474,41 @@ export default function PosView({ onCheckoutSuccess }: { onCheckoutSuccess: (ord
           </div>
         </div>
 
-        {/* Table/Table number Selector & Member customer Selector */}
-        <div className="p-3 border-b border-slate-100 flex gap-2">
-          {/* Customer association */}
+        {/* Customer Selector Block */}
+        <div className="p-3 border-b border-slate-100 bg-slate-50/20">
           <button
-            onClick={() => setShowCustomerModal(true)}
-            className="flex-1 px-3 py-1.5 bg-slate-50 border border-slate-200 hover:bg-slate-100 rounded-xl text-xs font-semibold text-slate-600 flex items-center justify-between transition"
+            onClick={() => {
+              setCustomerSearchQuery('');
+              setShowCustomerModal(true);
+            }}
+            className="w-full px-3.5 py-2 bg-white border border-slate-200 hover:border-indigo-400 hover:shadow-sm rounded-xl text-xs font-semibold text-slate-700 flex items-center justify-between transition-all"
           >
-            <span className="flex items-center gap-1.5">
-              <Users className="h-3.5 w-3.5 text-slate-400" />
-              <span className="truncate">{selectedCustomer ? selectedCustomer.name : 'Pelanggan: Guest'}</span>
-            </span>
+            <div className="flex items-center gap-2">
+              <div className="h-7 w-7 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center flex-shrink-0">
+                <Users className="h-4 w-4" />
+              </div>
+              <div className="text-left">
+                <p className="text-[10px] text-slate-400 font-medium">Asosiasi Pelanggan</p>
+                <p className="text-xs font-bold text-slate-800 truncate max-w-[150px] sm:max-w-[200px]">
+                  {selectedCustomer ? selectedCustomer.name : 'Pelanggan Guest (Umum)'}
+                </p>
+              </div>
+            </div>
             {selectedCustomer ? (
-              <span className="text-[9px] bg-emerald-500 text-white px-1.5 py-0.2 rounded font-bold uppercase">
-                {selectedCustomer.tier}
-              </span>
+              <div className="flex items-center gap-1.5">
+                <span className="text-[8px] bg-emerald-500 text-white px-1.5 py-0.5 rounded font-bold uppercase">
+                  {selectedCustomer.tier}
+                </span>
+                <span className="text-[8px] bg-indigo-50 text-indigo-600 px-1.5 py-0.5 rounded font-mono font-bold">
+                  {selectedCustomer.membershipPoints} Pts
+                </span>
+              </div>
             ) : (
-              <span className="text-[9px] bg-slate-200 text-slate-500 px-1.5 py-0.2 rounded font-bold">
-                UMUM
+              <span className="text-[8px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded font-bold">
+                UMUM (GUEST)
               </span>
             )}
           </button>
-
-          {/* Table number input */}
-          <input
-            type="text"
-            placeholder="No. Meja"
-            value={tableNo}
-            onChange={(e) => setTableNo(e.target.value)}
-            className="w-18 px-2 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-center text-xs font-bold text-slate-800 placeholder-slate-400 focus:outline-none focus:border-emerald-500 focus:bg-white"
-          />
         </div>
 
         {/* Cart Item list */}
@@ -603,8 +618,32 @@ export default function PosView({ onCheckoutSuccess }: { onCheckoutSuccess: (ord
             </button>
           </div>
 
+          {/* Manual Shipping Fee Input */}
+          <div className="flex items-center justify-between gap-4 p-2 bg-white border border-slate-200/80 rounded-xl shadow-xs">
+            <div className="flex items-center gap-2">
+              <div className="h-7 w-7 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center flex-shrink-0">
+                <Truck className="h-4 w-4" />
+              </div>
+              <span className="text-xs font-bold text-slate-700">Ongkos Kirim</span>
+            </div>
+            <div className="relative w-32">
+              <span className="absolute left-2.5 top-1 text-[10px] font-bold text-slate-400">Rp</span>
+              <input
+                type="number"
+                min="0"
+                placeholder="0"
+                value={shippingFee || ''}
+                onChange={(e) => {
+                  const val = parseInt(e.target.value) || 0;
+                  setShippingFee(val >= 0 ? val : 0);
+                }}
+                className="w-full pl-7 pr-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-right text-xs font-bold text-slate-800 focus:bg-white focus:outline-none focus:border-emerald-500"
+              />
+            </div>
+          </div>
+
           {/* Pricing calculations details list */}
-          <div className="space-y-1.5 text-xs">
+          <div className="space-y-1.5 text-xs pt-1">
             <div className="flex justify-between text-slate-500">
               <span>Subtotal</span>
               <span className="font-mono">Rp {totals.subtotal.toLocaleString('id-ID')}</span>
@@ -615,17 +654,15 @@ export default function PosView({ onCheckoutSuccess }: { onCheckoutSuccess: (ord
                 <span className="font-mono">-Rp {totals.discount.toLocaleString('id-ID')}</span>
               </div>
             )}
-            <div className="flex justify-between text-slate-500">
-              <span>Pajak (PB1 10%)</span>
-              <span className="font-mono">Rp {totals.tax.toLocaleString('id-ID')}</span>
-            </div>
-            <div className="flex justify-between text-slate-500">
-              <span>Service Charge (5%)</span>
-              <span className="font-mono">Rp {totals.service.toLocaleString('id-ID')}</span>
-            </div>
-            <div className="flex justify-between text-slate-900 font-extrabold text-sm pt-1.5 border-t border-dashed border-slate-200">
+            {shippingFee > 0 && (
+              <div className="flex justify-between text-slate-500">
+                <span>Ongkos Kirim (Manual)</span>
+                <span className="font-mono">Rp {shippingFee.toLocaleString('id-ID')}</span>
+              </div>
+            )}
+            <div className="flex justify-between text-slate-900 font-extrabold text-sm pt-2 border-t border-dashed border-slate-200">
               <span>Total Tagihan</span>
-              <span className="font-mono text-emerald-600">Rp {totals.total.toLocaleString('id-ID')}</span>
+              <span className="font-mono text-emerald-600 text-base">Rp {totals.total.toLocaleString('id-ID')}</span>
             </div>
           </div>
 
@@ -634,8 +671,8 @@ export default function PosView({ onCheckoutSuccess }: { onCheckoutSuccess: (ord
             <button
               onClick={() => {
                 if (cart.length === 0) return;
-                setHoldName(selectedCustomer ? selectedCustomer.name : `Meja ${tableNo || 'Guest'}`);
-                holdCurrentCart(selectedCustomer ? selectedCustomer.name : `Antrian ${Date.now().toString().slice(-4)}`, tableNo || undefined);
+                setHoldName(selectedCustomer ? selectedCustomer.name : 'Pelanggan Guest');
+                holdCurrentCart(selectedCustomer ? selectedCustomer.name : `Antrian ${Date.now().toString().slice(-4)}`);
               }}
               disabled={cart.length === 0}
               className="py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 disabled:opacity-40 font-bold text-xs rounded-xl border border-slate-200 transition"
@@ -807,7 +844,9 @@ export default function PosView({ onCheckoutSuccess }: { onCheckoutSuccess: (ord
                 <h3 className="text-xl font-extrabold text-slate-950 mt-1">
                   Rp {totals.total.toLocaleString('id-ID')}
                 </h3>
-                <p className="text-[10px] text-slate-400 mt-0.5">Sudah termasuk PPN 10% dan Service 5%</p>
+                <p className="text-[10px] text-slate-400 mt-0.5">
+                  {totals.shippingFee > 0 ? `Termasuk Ongkos Kirim Rp ${totals.shippingFee.toLocaleString('id-ID')}` : 'Harga final transaksi di kasir'}
+                </p>
               </div>
 
               {/* Conditional rendering based on Payment Method */}
@@ -922,8 +961,28 @@ export default function PosView({ onCheckoutSuccess }: { onCheckoutSuccess: (ord
             <h3 className="font-bold text-slate-900 text-sm">Pilih Profil Pelanggan</h3>
             <p className="text-[10px] text-slate-400">Hubungkan order ini ke program member loyalty</p>
 
+            {/* Customer Search Input */}
+            <div className="mt-4 relative">
+              <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-slate-400" />
+              <input
+                type="text"
+                placeholder="Cari nama, No. Telp, atau email..."
+                value={customerSearchQuery}
+                onChange={(e) => setCustomerSearchQuery(e.target.value)}
+                className="w-full pl-9 pr-8 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:border-indigo-500 focus:bg-white transition"
+              />
+              {customerSearchQuery && (
+                <button
+                  onClick={() => setCustomerSearchQuery('')}
+                  className="absolute right-3 top-2 text-slate-400 hover:text-slate-600"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
+
             {/* Selector list of customers */}
-            <div className="mt-4 space-y-2 max-h-[250px] overflow-y-auto pr-1">
+            <div className="mt-3 space-y-2 max-h-[220px] overflow-y-auto pr-1">
               <button
                 onClick={() => {
                   setSelectedCustomer(null);
@@ -939,7 +998,7 @@ export default function PosView({ onCheckoutSuccess }: { onCheckoutSuccess: (ord
                 {selectedCustomer === null && <Check className="h-4 w-4 text-emerald-600" />}
               </button>
 
-              {customers.map((c) => (
+              {filteredCustomers.map((c) => (
                 <button
                   key={c.id}
                   onClick={() => {
@@ -964,6 +1023,12 @@ export default function PosView({ onCheckoutSuccess }: { onCheckoutSuccess: (ord
                   </div>
                 </button>
               ))}
+
+              {filteredCustomers.length === 0 && (
+                <div className="py-8 text-center text-slate-400 text-xs">
+                  Tidak ada pelanggan yang cocok.
+                </div>
+              )}
             </div>
           </div>
         </div>

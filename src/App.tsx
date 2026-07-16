@@ -367,14 +367,24 @@ function AppContent() {
                     <span>-Rp {selectedReceipt.discount.toLocaleString()}</span>
                   </div>
                 )}
-                <div className="flex justify-between">
-                  <span>Pajak (PB1 10%):</span>
-                  <span>Rp {selectedReceipt.tax.toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Service Charge (5%):</span>
-                  <span>Rp {selectedReceipt.serviceCharge?.toLocaleString() || '0'}</span>
-                </div>
+                {selectedReceipt.tax > 0 && (
+                  <div className="flex justify-between">
+                    <span>Pajak (PB1 10%):</span>
+                    <span>Rp {selectedReceipt.tax.toLocaleString()}</span>
+                  </div>
+                )}
+                {selectedReceipt.serviceCharge > 0 && (
+                  <div className="flex justify-between">
+                    <span>Service Charge (5%):</span>
+                    <span>Rp {selectedReceipt.serviceCharge.toLocaleString()}</span>
+                  </div>
+                )}
+                {selectedReceipt.shippingFee > 0 && (
+                  <div className="flex justify-between">
+                    <span>Ongkos Kirim:</span>
+                    <span>Rp {selectedReceipt.shippingFee.toLocaleString()}</span>
+                  </div>
+                )}
                 <div className="flex justify-between font-extrabold text-slate-950 text-xs pt-1 border-t border-dashed">
                   <span>GRAND TOTAL:</span>
                   <span>Rp {selectedReceipt.total.toLocaleString()}</span>

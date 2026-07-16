@@ -74,6 +74,7 @@ export interface Order {
   subtotal: number;
   tax: number;
   serviceCharge: number;
+  shippingFee?: number;
   discount: number;
   total: number;
   amountPaid: number;

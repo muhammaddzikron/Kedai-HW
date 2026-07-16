@@ -538,7 +538,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const checkoutCart = (
     paymentMethod: PaymentMethod,
     amountPaid: number,
-    options: { customerId?: string; discount?: number; tableNo?: string; splitCount?: number }
+    options: { customerId?: string; discount?: number; tableNo?: string; splitCount?: number; shippingFee?: number }
   ): Order => {
     const customerObj = customers.find((c) => c.id === options.customerId);
     
@@ -567,9 +567,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
 
     const discountValue = options.discount || 0;
-    const taxValue = Math.round((cartSubtotal - discountValue) * 0.1); // 10% tax
-    const serviceValue = Math.round((cartSubtotal - discountValue) * 0.05); // 5% service charge
-    const totalVal = cartSubtotal - discountValue + taxValue + serviceValue;
+    const shippingFeeValue = options.shippingFee || 0;
+    const totalVal = cartSubtotal - discountValue + shippingFeeValue;
 
     const newOrder: Order = {
       id: `inv-${Date.now()}`,
@@ -580,8 +579,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       customerPhone: customerObj?.phone,
       items: itemsList,
       subtotal: cartSubtotal,
-      tax: taxValue,
-      serviceCharge: serviceValue,
+      tax: 0,
+      serviceCharge: 0,
+      shippingFee: shippingFeeValue,
       discount: discountValue,
       total: totalVal,
       amountPaid,
