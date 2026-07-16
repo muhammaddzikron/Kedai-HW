@@ -18,7 +18,7 @@ import {
 } from 'lucide-react';
 
 export default function FinanceView() {
-  const { accountCodes, addFinanceTransaction } = useApp();
+  const { accountCodes, addFinanceTransaction, financeTransactions } = useApp();
 
   const [showModal, setShowModal] = useState(false);
 
@@ -181,38 +181,24 @@ export default function FinanceView() {
           </h3>
 
           <div className="space-y-3 max-h-[380px] overflow-y-auto pr-1">
-            <div className="p-3 bg-slate-50/50 border border-slate-100 rounded-xl text-xs space-y-1">
-              <div className="flex justify-between font-bold">
-                <span className="text-slate-800">Pembayaran Gaji Siti Aminah (Cashier)</span>
-                <span className="text-rose-600 font-mono">-Rp 1,600,000</span>
-              </div>
-              <div className="flex justify-between text-[10px] text-slate-400 font-semibold">
-                <span>Ref: Gaji Juni • Rek: Beban Gaji & Honor Staff</span>
-                <span>2026-07-14</span>
-              </div>
-            </div>
-
-            <div className="p-3 bg-slate-50/50 border border-slate-100 rounded-xl text-xs space-y-1">
-              <div className="flex justify-between font-bold">
-                <span className="text-slate-800">Pembayaran Token Listrik Kedai</span>
-                <span className="text-rose-600 font-mono">-Rp 450,000</span>
-              </div>
-              <div className="flex justify-between text-[10px] text-slate-400 font-semibold">
-                <span>Ref: Listrik Juni • Rek: Beban Operasional Air/Listrik</span>
-                <span>2026-07-12</span>
-              </div>
-            </div>
-
-            <div className="p-3 bg-slate-50/50 border border-slate-100 rounded-xl text-xs space-y-1">
-              <div className="flex justify-between font-bold">
-                <span className="text-slate-800">Suntikan Dana Modal Awal Koperasi</span>
-                <span className="text-emerald-600 font-mono">+Rp 5,000,000</span>
-              </div>
-              <div className="flex justify-between text-[10px] text-slate-400 font-semibold">
-                <span>Ref: Capital Inject • Rek: Modal Awal Kepanduan</span>
-                <span>2026-07-01</span>
-              </div>
-            </div>
+            {financeTransactions.length === 0 ? (
+              <p className="text-xs text-slate-400 text-center py-8">Belum ada transaksi kas.</p>
+            ) : (
+              financeTransactions.map((tx) => (
+                <div key={tx.id} className="p-3 bg-slate-50/50 border border-slate-100 rounded-xl text-xs space-y-1 text-left">
+                  <div className="flex justify-between font-bold">
+                    <span className="text-slate-800">{tx.description}</span>
+                    <span className={`${tx.category === 'INCOME' ? 'text-emerald-600' : 'text-rose-600'} font-mono`}>
+                      {tx.category === 'INCOME' ? '+' : '-'}Rp {tx.amount.toLocaleString('id-ID')}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-[10px] text-slate-400 font-semibold">
+                    <span>Rek: {tx.accountName}</span>
+                    <span>{new Date(tx.date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}</span>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         </div>
 

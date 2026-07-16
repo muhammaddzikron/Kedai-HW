@@ -22,7 +22,9 @@ import {
   PaymentMethod,
   ProductVariant,
   ProductModifier,
-  KonveksiOrder
+  KonveksiOrder,
+  PurchaseOrder,
+  JournalEntry
 } from '../types';
 import {
   INITIAL_PRODUCTS,
@@ -85,7 +87,7 @@ interface AppContextType {
   deleteHeldCart: (holdId: string) => void;
   
   // Sales Execution
-  checkoutCart: (paymentMethod: PaymentMethod, amountPaid: number, options: { customerId?: string; discount?: number; tableNo?: string; splitCount?: number }) => Order;
+  checkoutCart: (paymentMethod: PaymentMethod, amountPaid: number, options: { customerId?: string; discount?: number; tableNo?: string; splitCount?: number; shippingFee?: number }) => Order;
   refundOrder: (orderId: string) => void;
 
   // Management Actions
@@ -129,6 +131,24 @@ interface AppContextType {
   pushProductsToGoogleSheets: (currentProducts?: Product[]) => Promise<boolean>;
   pushCustomersToGoogleSheets: (currentCustomers?: Customer[]) => Promise<boolean>;
   pullCustomersFromGoogleSheets: () => Promise<void>;
+
+  purchaseOrders: PurchaseOrder[];
+  setPurchaseOrders: React.Dispatch<React.SetStateAction<PurchaseOrder[]>>;
+  financeTransactions: any[];
+  setFinanceTransactions: React.Dispatch<React.SetStateAction<any[]>>;
+  journalEntries: JournalEntry[];
+  setJournalEntries: React.Dispatch<React.SetStateAction<JournalEntry[]>>;
+
+  // New sync functions
+  pushOrderToGoogleSheets: (order: Order) => Promise<boolean>;
+  pushInventoryMovementToGoogleSheets: (movement: InventoryMovement) => Promise<boolean>;
+  pushFinanceTransactionToGoogleSheets: (transaction: any) => Promise<boolean>;
+  pushJournalEntryToGoogleSheets: (journal: any) => Promise<boolean>;
+  pushAuditLogToGoogleSheets: (log: AuditLog) => Promise<boolean>;
+  pushSuppliersToGoogleSheets: (currentSuppliers?: Supplier[]) => Promise<boolean>;
+  pushPurchasesToGoogleSheets: (currentPurchases?: PurchaseOrder[]) => Promise<boolean>;
+  pushStaffToGoogleSheets: (currentStaff?: Staff[]) => Promise<boolean>;
+  pushAllDataToGoogleSheets: () => Promise<boolean>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -328,6 +348,110 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     localStorage.setItem('kdp_konveksi_orders', JSON.stringify(konveksiOrders));
   }, [konveksiOrders]);
 
+  const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrder[]>(() => {
+    const saved = localStorage.getItem('kdp_purchase_orders');
+    return saved ? JSON.parse(saved) : [
+      {
+        id: 'po-1',
+        poNo: 'PO-20260710-01',
+        supplierId: 's1',
+        supplierName: 'PT Pramuka Atribut Indonesia',
+        date: '2026-07-10T10:00:00Z',
+        items: [
+          { productId: 'p6', productName: 'Setangan Leher Pramuka Premium (Slayer)', quantity: 100, costPrice: 15000, subtotal: 1500000 }
+        ],
+        total: 1500000,
+        status: 'RECEIVED',
+        paymentStatus: 'PAID',
+        createdAt: '2026-07-10T10:00:00Z'
+      },
+      {
+        id: 'po-2',
+        poNo: 'PO-20260714-02',
+        supplierId: 's3',
+        supplierName: 'Grosir Kopi Nusantara Bandung',
+        date: '2026-07-14T11:30:00Z',
+        items: [
+          { productId: 'p1', productName: 'Kopi Susu Pandan Kepanduan', quantity: 50, costPrice: 9000, subtotal: 450000 },
+          { productId: 'p2', productName: 'Manual Brew V60 Flores Bajawa', quantity: 30, costPrice: 11000, subtotal: 330000 }
+        ],
+        total: 780000,
+        status: 'PENDING',
+        paymentStatus: 'DEBT',
+        createdAt: '2026-07-14T11:30:00Z'
+      }
+    ];
+  });
+
+  const [financeTransactions, setFinanceTransactions] = useState<any[]>(() => {
+    const saved = localStorage.getItem('kdp_finance_transactions');
+    return saved ? JSON.parse(saved) : [
+      {
+        id: 'ft-1',
+        date: '2026-07-14T15:00:00Z',
+        description: 'Pembayaran Gaji Siti Aminah (Cashier)',
+        category: 'EXPENSE',
+        amount: 1600000,
+        accountId: 'coa-10',
+        accountName: 'Beban Gaji & Honor Staff'
+      },
+      {
+        id: 'ft-2',
+        date: '2026-07-13T09:00:00Z',
+        description: 'Pembayaran Token Listrik Kedai',
+        category: 'EXPENSE',
+        amount: 450000,
+        accountId: 'coa-8',
+        accountName: 'Beban Air, Listrik & Internet'
+      },
+      {
+        id: 'ft-3',
+        date: '2026-07-12T14:30:00Z',
+        description: 'Pembelian Sabun Cuci & Pembersih Lantai',
+        category: 'EXPENSE',
+        amount: 85000,
+        accountId: 'coa-9',
+        accountName: 'Beban Perlengkapan Toko'
+      },
+      {
+        id: 'ft-4',
+        date: '2026-07-10T08:00:00Z',
+        description: 'Penerimaan Dana Sponsor Kegiatan Pramuka',
+        category: 'INCOME',
+        amount: 2500000,
+        accountId: 'coa-7',
+        accountName: 'Pendapatan Lain-lain'
+      }
+    ];
+  });
+
+  const [journalEntries, setJournalEntries] = useState<JournalEntry[]>(() => {
+    const saved = localStorage.getItem('kdp_journals');
+    return saved ? JSON.parse(saved) : [
+      {
+        id: 'je-1',
+        date: '2026-07-14T15:00:00Z',
+        description: 'Pembayaran Gaji Siti Aminah (Cashier)',
+        reference: 'EXP-ADJ',
+        debits: [{ accountId: 'coa-10', accountName: 'Beban Gaji & Honor Staff', amount: 1600000 }],
+        credits: [{ accountId: 'coa-1', accountName: 'Kas Utama Kedai', amount: 1600000 }],
+        createdAt: '2026-07-14T15:00:00Z'
+      }
+    ];
+  });
+
+  useEffect(() => {
+    localStorage.setItem('kdp_purchase_orders', JSON.stringify(purchaseOrders));
+  }, [purchaseOrders]);
+
+  useEffect(() => {
+    localStorage.setItem('kdp_finance_transactions', JSON.stringify(financeTransactions));
+  }, [financeTransactions]);
+
+  useEffect(() => {
+    localStorage.setItem('kdp_journals', JSON.stringify(journalEntries));
+  }, [journalEntries]);
+
   const [googleSheetUrl, setGoogleSheetUrl] = useState<string>(() => {
     return localStorage.getItem('kdp_google_sheet_url') || 'https://docs.google.com/spreadsheets/d/1Mn8VdSy7AV5xsMEIv8J9ozK6x6fq4cwM-0iyBjxEmhw/edit?usp=sharing';
   });
@@ -406,6 +530,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       description
     };
     setAuditLogs((prev) => [newLog, ...prev]);
+    pushAuditLogToGoogleSheets(newLog);
   };
 
   // Switch role and update current user
@@ -667,6 +792,28 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setCart([]); // Reset Cart
     addAuditLog('TRANSACTION_COMPLETED', 'POS', `Completed order ${newOrder.orderNo} for IDR ${totalVal.toLocaleString()}`);
 
+    // GOOGLE SHEETS REAL-TIME SYNC
+    pushOrderToGoogleSheets(newOrder);
+    
+    // Push inventory movements
+    cart.forEach((item) => {
+      const newMovement: InventoryMovement = {
+        id: `mvt-${Date.now()}-${item.product.id}`,
+        productId: item.product.id,
+        productName: item.product.name,
+        date: new Date().toISOString(),
+        type: 'OUT',
+        qty: item.quantity,
+        referenceNo: newOrder.orderNo,
+        warehouseName: currentBranch.name,
+        notes: `Penjualan Kasir (${currentUser.name})`
+      };
+      pushInventoryMovementToGoogleSheets(newMovement);
+    });
+
+    // Push updated products stock
+    pushProductsToGoogleSheets();
+
     return newOrder;
   };
 
@@ -864,19 +1011,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       id: `s-${Date.now()}`,
       createdAt: new Date().toISOString()
     };
-    setSuppliers((prev) => [...prev, newSup]);
+    setSuppliers((prev) => {
+      const updated = [...prev, newSup];
+      pushSuppliersToGoogleSheets(updated);
+      return updated;
+    });
     addAuditLog('ADD_SUPPLIER', 'SUPPLIER', `Added supplier: ${sup.name}`);
   };
 
   const addSupplierDebtPayment = (supplierId: string, amount: number) => {
-    setSuppliers((prev) =>
-      prev.map((s) => {
+    let updatedSuppliers: Supplier[] = [];
+    setSuppliers((prev) => {
+      const list = prev.map((s) => {
         if (s.id === supplierId) {
           return { ...s, unpaidDebt: Math.max(0, s.unpaidDebt - amount) };
         }
         return s;
-      })
-    );
+      });
+      updatedSuppliers = list;
+      return list;
+    });
     // Debit Liability (Account Payable), Credit Cash
     setAccountCodes((prev) =>
       prev.map((coa) => {
@@ -893,6 +1047,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (s) {
       addAuditLog('DEBT_PAYMENT', 'FINANCE', `Paid IDR ${amount.toLocaleString()} debt to ${s.name}`);
     }
+    pushSuppliersToGoogleSheets(updatedSuppliers);
   };
 
   const addStaff = (s: Omit<Staff, 'id'>) => {
@@ -901,18 +1056,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       attendanceStatus: 'PRESENT',
       id: `st-${Date.now()}`
     };
-    setStaff((prev) => [...prev, newStaff]);
+    setStaff((prev) => {
+      const updated = [...prev, newStaff];
+      pushStaffToGoogleSheets(updated);
+      return updated;
+    });
     addAuditLog('ADD_STAFF', 'STAFF', `Added staff member: ${s.name}`);
   };
 
   const updateStaffCommission = (id: string, rate: number) => {
-    setStaff((prev) =>
-      prev.map((s) => (s.id === id ? { ...s, commissionRate: rate } : s))
-    );
+    let updatedStaffList: Staff[] = [];
+    setStaff((prev) => {
+      const list = prev.map((s) => (s.id === id ? { ...s, commissionRate: rate } : s));
+      updatedStaffList = list;
+      return list;
+    });
     const s = staff.find((st) => st.id === id);
     if (s) {
       addAuditLog('UPDATE_COMMISSION', 'STAFF', `Updated commission rate for ${s.name} to ${rate}%`);
     }
+    pushStaffToGoogleSheets(updatedStaffList);
   };
 
   const addKonveksiOrder = (ko: Omit<KonveksiOrder, 'id' | 'orderNo'>) => {
@@ -990,15 +1153,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Stock Actions (FIFO/LIFO/Average simulation)
   const adjustStock = (productId: string, adjustmentQty: number, notes: string) => {
-    setProducts((prev) =>
-      prev.map((p) => {
+    let updatedProducts: Product[] = [];
+    setProducts((prev) => {
+      const list = prev.map((p) => {
         if (p.id === productId) {
           const newStock = Math.max(0, p.stock + adjustmentQty);
           return { ...p, stock: newStock };
         }
         return p;
-      })
-    );
+      });
+      updatedProducts = list;
+      return list;
+    });
 
     const prod = products.find((p) => p.id === productId);
     if (prod) {
@@ -1015,19 +1181,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       };
       setInventoryMovements((prev) => [movement, ...prev]);
       addAuditLog('STOCK_ADJUST', 'INVENTORY', `Adjusted stock for ${prod.name} by ${adjustmentQty > 0 ? '+' : ''}${adjustmentQty}`);
+      
+      // GOOGLE SHEETS SYNC
+      pushInventoryMovementToGoogleSheets(movement);
+      setTimeout(() => pushProductsToGoogleSheets(updatedProducts), 500);
     }
   };
 
   const transferStock = (productId: string, transferQty: number, notes: string) => {
+    let updatedProducts: Product[] = [];
     // Subtract from active stock
-    setProducts((prev) =>
-      prev.map((p) => {
+    setProducts((prev) => {
+      const list = prev.map((p) => {
         if (p.id === productId) {
           return { ...p, stock: Math.max(0, p.stock - transferQty) };
         }
         return p;
-      })
-    );
+      });
+      updatedProducts = list;
+      return list;
+    });
 
     const prod = products.find((p) => p.id === productId);
     if (prod) {
@@ -1044,6 +1217,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       };
       setInventoryMovements((prev) => [movement, ...prev]);
       addAuditLog('STOCK_TRANSFER', 'INVENTORY', `Transferred ${transferQty} pcs of ${prod.name} from ${currentBranch.name}`);
+      
+      // GOOGLE SHEETS SYNC
+      pushInventoryMovementToGoogleSheets(movement);
+      setTimeout(() => pushProductsToGoogleSheets(updatedProducts), 500);
     }
   };
 
@@ -1109,9 +1286,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       })
     );
 
+    // Create and save finance transaction record
+    const newTx = {
+      id: `ft-${Date.now()}`,
+      date: new Date().toISOString(),
+      description,
+      category,
+      amount,
+      accountId,
+      accountName: targetAcc.name
+    };
+    setFinanceTransactions((prev) => [newTx, ...prev]);
+
     // Write simple journal entries
     const journalId = `je-${Date.now()}`;
-    const newEntry = {
+    const newEntry: JournalEntry = {
       id: journalId,
       date: new Date().toISOString(),
       description,
@@ -1124,13 +1313,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         : [{ accountId: 'coa-1', accountName: 'Kas Utama Kedai', amount }],
       createdAt: new Date().toISOString()
     };
-
-    // Save journal entry
-    const savedJe = localStorage.getItem('kdp_journals');
-    const jeList = savedJe ? JSON.parse(savedJe) : [];
-    localStorage.setItem('kdp_journals', JSON.stringify([newEntry, ...jeList]));
+    setJournalEntries((prev) => [newEntry, ...prev]);
 
     addAuditLog('FINANCE_RECORD', 'FINANCE', `Logged ${category.toLowerCase()}: "${description}" of IDR ${amount.toLocaleString()}`);
+
+    // Push to Google Sheets in real-time
+    pushFinanceTransactionToGoogleSheets(newTx);
+    pushJournalEntryToGoogleSheets(newEntry);
   };
 
   const updateGoogleConfig = (sheetUrl: string, driveUrl: string, appsScriptUrl?: string) => {
@@ -1668,6 +1857,155 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  const pushOrderToGoogleSheets = async (order: Order) => {
+    if (!googleAppsScriptUrl || !googleAppsScriptUrl.includes('script.google.com')) return false;
+    try {
+      const response = await fetch(googleAppsScriptUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify({ action: 'add_pos_transaction', order })
+      });
+      return response.ok;
+    } catch (err) {
+      console.error('Error pushing order:', err);
+      return false;
+    }
+  };
+
+  const pushInventoryMovementToGoogleSheets = async (movement: InventoryMovement) => {
+    if (!googleAppsScriptUrl || !googleAppsScriptUrl.includes('script.google.com')) return false;
+    try {
+      const response = await fetch(googleAppsScriptUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify({ action: 'add_inventory_movement', movement })
+      });
+      return response.ok;
+    } catch (err) {
+      console.error('Error pushing movement:', err);
+      return false;
+    }
+  };
+
+  const pushFinanceTransactionToGoogleSheets = async (transaction: any) => {
+    if (!googleAppsScriptUrl || !googleAppsScriptUrl.includes('script.google.com')) return false;
+    try {
+      const response = await fetch(googleAppsScriptUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify({ action: 'add_finance_transaction', transaction })
+      });
+      return response.ok;
+    } catch (err) {
+      console.error('Error pushing finance transaction:', err);
+      return false;
+    }
+  };
+
+  const pushJournalEntryToGoogleSheets = async (journal: any) => {
+    if (!googleAppsScriptUrl || !googleAppsScriptUrl.includes('script.google.com')) return false;
+    try {
+      const response = await fetch(googleAppsScriptUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify({ action: 'add_journal_entry', journal })
+      });
+      return response.ok;
+    } catch (err) {
+      console.error('Error pushing journal entry:', err);
+      return false;
+    }
+  };
+
+  const pushAuditLogToGoogleSheets = async (log: AuditLog) => {
+    if (!googleAppsScriptUrl || !googleAppsScriptUrl.includes('script.google.com')) return false;
+    try {
+      const response = await fetch(googleAppsScriptUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify({ action: 'add_audit_log', log })
+      });
+      return response.ok;
+    } catch (err) {
+      console.error('Error pushing audit log:', err);
+      return false;
+    }
+  };
+
+  const pushSuppliersToGoogleSheets = async (currentSuppliers?: Supplier[]) => {
+    const list = currentSuppliers || suppliers;
+    if (!googleAppsScriptUrl || !googleAppsScriptUrl.includes('script.google.com')) return false;
+    try {
+      const response = await fetch(googleAppsScriptUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify({ action: 'sync_all_suppliers', suppliers: list })
+      });
+      return response.ok;
+    } catch (err) {
+      console.error('Error pushing suppliers:', err);
+      return false;
+    }
+  };
+
+  const pushPurchasesToGoogleSheets = async (currentPurchases?: PurchaseOrder[]) => {
+    const list = currentPurchases || purchaseOrders;
+    if (!googleAppsScriptUrl || !googleAppsScriptUrl.includes('script.google.com')) return false;
+    try {
+      const response = await fetch(googleAppsScriptUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify({ action: 'sync_all_purchases', purchases: list })
+      });
+      return response.ok;
+    } catch (err) {
+      console.error('Error pushing purchases:', err);
+      return false;
+    }
+  };
+
+  const pushStaffToGoogleSheets = async (currentStaff?: Staff[]) => {
+    const list = currentStaff || staff;
+    if (!googleAppsScriptUrl || !googleAppsScriptUrl.includes('script.google.com')) return false;
+    try {
+      const response = await fetch(googleAppsScriptUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify({ action: 'sync_all_staff', staff: list })
+      });
+      return response.ok;
+    } catch (err) {
+      console.error('Error pushing staff:', err);
+      return false;
+    }
+  };
+
+  const pushAllDataToGoogleSheets = async () => {
+    setIsSyncing(true);
+    addAuditLog('SYNC_ALL_START', 'SYSTEM', 'Memulai sinkronisasi massal seluruh database ke Google Sheets');
+    try {
+      const p1 = await pushProductsToGoogleSheets();
+      const p2 = await pushCustomersToGoogleSheets();
+      const p3 = await pushSuppliersToGoogleSheets();
+      const p4 = await pushPurchasesToGoogleSheets();
+      const p5 = await pushStaffToGoogleSheets();
+      
+      const success = p1 && p2 && p3 && p4 && p5;
+      if (success) {
+        addAuditLog('SYNC_ALL_SUCCESS', 'SYSTEM', 'Berhasil menyinkronkan seluruh database ke Google Sheets!');
+      } else {
+        addAuditLog('SYNC_ALL_PARTIAL', 'SYSTEM', 'Sinkronisasi selesai dengan beberapa kegagalan');
+      }
+      return success;
+    } catch (err) {
+      console.error('Error pushing all data:', err);
+      addAuditLog('SYNC_ALL_FAILED', 'SYSTEM', 'Gagal melakukan sinkronisasi massal');
+      return false;
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
   return (
     <AppContext.Provider
       value={{
@@ -1749,7 +2087,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         syncProductsFromGoogleSheets,
         pushProductsToGoogleSheets,
         pushCustomersToGoogleSheets,
-        pullCustomersFromGoogleSheets
+        pullCustomersFromGoogleSheets,
+
+        purchaseOrders,
+        setPurchaseOrders,
+        financeTransactions,
+        setFinanceTransactions,
+        journalEntries,
+        setJournalEntries,
+        
+        pushOrderToGoogleSheets,
+        pushInventoryMovementToGoogleSheets,
+        pushFinanceTransactionToGoogleSheets,
+        pushJournalEntryToGoogleSheets,
+        pushAuditLogToGoogleSheets,
+        pushSuppliersToGoogleSheets,
+        pushPurchasesToGoogleSheets,
+        pushStaffToGoogleSheets,
+        pushAllDataToGoogleSheets
       }}
     >
       {children}

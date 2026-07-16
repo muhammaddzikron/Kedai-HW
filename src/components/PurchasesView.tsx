@@ -19,7 +19,14 @@ import {
 } from 'lucide-react';
 
 export default function PurchasesView() {
-  const { suppliers, products, addAuditLog } = useApp();
+  const { 
+    suppliers, 
+    products, 
+    addAuditLog,
+    purchaseOrders,
+    setPurchaseOrders,
+    pushPurchasesToGoogleSheets
+  } = useApp();
 
   const [activeTab, setActiveTab] = useState<'LIST' | 'CREATE'>('LIST');
 
@@ -27,39 +34,6 @@ export default function PurchasesView() {
   const [supplierId, setSupplierId] = useState(suppliers[0]?.id || '');
   const [poItems, setPoItems] = useState<{ productId: string; qty: number; costPrice: number }[]>([
     { productId: products[0]?.id || '', qty: 10, costPrice: products[0]?.costPrice || 5000 }
-  ]);
-
-  // Mock Purchase orders logs
-  const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrder[]>([
-    {
-      id: 'po-1',
-      poNo: 'PO-20260710-01',
-      supplierId: 's1',
-      supplierName: 'PT Pramuka Atribut Indonesia',
-      date: '2026-07-10T10:00:00Z',
-      items: [
-        { productId: 'p6', productName: 'Setangan Leher Pramuka Premium (Slayer)', quantity: 100, costPrice: 15000, subtotal: 1500000 }
-      ],
-      total: 1500000,
-      status: 'RECEIVED',
-      paymentStatus: 'PAID',
-      createdAt: '2026-07-10T10:00:00Z'
-    },
-    {
-      id: 'po-2',
-      poNo: 'PO-20260714-02',
-      supplierId: 's3',
-      supplierName: 'Grosir Kopi Nusantara Bandung',
-      date: '2026-07-14T11:30:00Z',
-      items: [
-        { productId: 'p1', productName: 'Kopi Susu Pandan Kepanduan', quantity: 50, costPrice: 9000, subtotal: 450000 },
-        { productId: 'p2', productName: 'Manual Brew V60 Flores Bajawa', quantity: 30, costPrice: 11000, subtotal: 330000 }
-      ],
-      total: 780000,
-      status: 'PENDING',
-      paymentStatus: 'DEBT',
-      createdAt: '2026-07-14T11:30:00Z'
-    }
   ]);
 
   const handleAddPoItem = () => {
@@ -118,21 +92,23 @@ export default function PurchasesView() {
       createdAt: new Date().toISOString()
     };
 
-    setPurchaseOrders([newPO, ...purchaseOrders]);
+    const updated = [newPO, ...purchaseOrders];
+    setPurchaseOrders(updated);
+    pushPurchasesToGoogleSheets(updated);
     setActiveTab('LIST');
     addAuditLog('CREATE_PO', 'PURCHASES', `Drafted Purchase Order ${newPO.poNo} to supplier ${sup.name}`);
   };
 
   const handleReceiveGoods = (poId: string) => {
-    setPurchaseOrders(prev =>
-      prev.map(po => {
-        if (po.id === poId) {
-          addAuditLog('RECEIVE_GOODS', 'PURCHASES', `Received supplier stock for Purchase Order ${po.poNo}. Products stocked in core warehouse.`);
-          return { ...po, status: 'RECEIVED' };
-        }
-        return po;
-      })
-    );
+    const updated = purchaseOrders.map(po => {
+      if (po.id === poId) {
+        addAuditLog('RECEIVE_GOODS', 'PURCHASES', `Received supplier stock for Purchase Order ${po.poNo}. Products stocked in core warehouse.`);
+        return { ...po, status: 'RECEIVED' };
+      }
+      return po;
+    });
+    setPurchaseOrders(updated);
+    pushPurchasesToGoogleSheets(updated);
   };
 
   const totalOutstandingDebt = useMemo(() => {

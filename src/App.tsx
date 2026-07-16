@@ -17,10 +17,7 @@ import FinanceView from './components/FinanceView';
 import AccountingView from './components/AccountingView';
 import ReportsView from './components/ReportsView';
 import StaffView from './components/StaffView';
-import BranchesView from './components/BranchesView';
-import PromotionsView from './components/PromotionsView';
 import SettingsView from './components/SettingsView';
-import KonveksiView from './components/KonveksiView';
 import { X, Printer, Menu } from 'lucide-react';
 
 function AppContent() {
@@ -204,8 +201,6 @@ function AppContent() {
         return <InventoryView />;
       case 'purchases':
         return <PurchasesView />;
-      case 'konveksi':
-        return <KonveksiView />;
       case 'suppliers':
         return <SuppliersView />;
       case 'customers':
@@ -218,10 +213,6 @@ function AppContent() {
         return <ReportsView />;
       case 'staff':
         return <StaffView />;
-      case 'branches':
-        return <BranchesView />;
-      case 'promotions':
-        return <PromotionsView />;
       case 'settings':
         return <SettingsView />;
       default:

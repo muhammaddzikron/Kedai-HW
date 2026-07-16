@@ -65,7 +65,6 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
     { id: 'products', label: 'Katalog Produk', icon: Coffee, category: 'OPERASIONAL' },
     { id: 'inventory', label: 'Stok & Gudang', icon: PackageOpen, category: 'OPERASIONAL' },
     { id: 'purchases', label: 'Pembelian Stok', icon: ShoppingBag, category: 'OPERASIONAL' },
-    { id: 'konveksi', label: 'Konveksi & Custom Order', icon: Scissors, category: 'OPERASIONAL' },
     
     { id: 'suppliers', label: 'Pemasok / Supplier', icon: Truck, category: 'MITRA & PELANGGAN' },
     { id: 'customers', label: 'Anggota / Pelanggan', icon: Users, category: 'MITRA & PELANGGAN' },
@@ -75,8 +74,6 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
     { id: 'reports', label: 'Laporan & Audit', icon: BarChart3, category: 'KEUANGAN' },
     
     { id: 'staff', label: 'Staf & Kehadiran', icon: UserCheck, category: 'FITUR SAAS' },
-    { id: 'branches', label: 'Multi Cabang', icon: Network, category: 'FITUR SAAS' },
-    { id: 'promotions', label: 'Promosi & Kupon', icon: Percent, category: 'FITUR SAAS' },
     
     { id: 'settings', label: 'Pengaturan Sistem', icon: Settings, category: 'SISTEM' }
   ];
