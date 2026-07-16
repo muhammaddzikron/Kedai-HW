@@ -35,6 +35,7 @@ export default function ProductsView() {
     deleteProducts,
     importProducts,
     syncProductsFromGoogleSheets, 
+    pushProductsToGoogleSheets,
     googleSheetUrl, 
     googleDriveUrl, 
     isSyncing 
@@ -532,14 +533,32 @@ export default function ProductsView() {
           </div>
         </div>
         
-        <button
-          onClick={handleSyncSheets}
-          disabled={isSyncing}
-          className={`px-3.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold text-[10px] rounded-lg border border-emerald-200 flex items-center gap-1 transition ${isSyncing ? 'opacity-50 cursor-not-allowed' : ''}`}
-        >
-          <RefreshCw className={`h-3 w-3 ${isSyncing ? 'animate-spin' : ''}`} />
-          <span>{isSyncing ? 'Memperbarui...' : 'Tarik Data Produk'}</span>
-        </button>
+        <div className="flex items-center gap-2 w-full md:w-auto">
+          <button
+            onClick={handleSyncSheets}
+            disabled={isSyncing}
+            className={`flex-1 md:flex-initial px-3.5 py-1.5 bg-white hover:bg-slate-50 text-slate-700 font-bold text-[10px] rounded-lg border border-slate-200 flex items-center justify-center gap-1.5 transition shadow-sm ${isSyncing ? 'opacity-50 cursor-not-allowed' : ''}`}
+          >
+            <RefreshCw className={`h-3 w-3 text-emerald-600 ${isSyncing ? 'animate-spin' : ''}`} />
+            <span>Tarik Data Produk</span>
+          </button>
+          
+          <button
+            onClick={async () => {
+              const success = await pushProductsToGoogleSheets();
+              if (success) {
+                alert("Berhasil mengunggah semua produk lokal ke Google Sheets!");
+              } else {
+                alert("Gagal mengunggah produk. Pastikan URL Google Apps Script sudah benar.");
+              }
+            }}
+            disabled={isSyncing}
+            className={`flex-1 md:flex-initial px-3.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold text-[10px] rounded-lg border border-emerald-200 flex items-center justify-center gap-1.5 transition ${isSyncing ? 'opacity-50 cursor-not-allowed' : ''}`}
+          >
+            <Upload className="h-3.5 w-3.5" />
+            <span>Unggah Data Produk</span>
+          </button>
+        </div>
       </div>
 
       {/* Summary Valuation stats */}

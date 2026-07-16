@@ -45,7 +45,10 @@ export default function CustomersView() {
     deleteCustomer,
     deleteCustomers,
     importCustomers,
-    konveksiOrders
+    konveksiOrders,
+    isSyncing,
+    pullCustomersFromGoogleSheets,
+    pushCustomersToGoogleSheets
   } = useApp();
 
   // Dialog & Modal Control
@@ -570,6 +573,55 @@ export default function CustomersView() {
           >
             <Plus className="h-4 w-4" />
             <span>Tambah Pelanggan</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Google Sheets Synchronization Connector */}
+      <div className="bg-slate-50 rounded-2xl border border-slate-200 p-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 text-xs">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2 text-slate-800 font-bold">
+            <span className="w-2.5 h-2.5 rounded-full bg-indigo-500 animate-pulse"></span>
+            <span>Konektor Sinkronisasi Pelanggan Google Sheets</span>
+          </div>
+          <p className="text-slate-500">
+            Sinkronkan database pelanggan dua arah dengan tab <span className="font-semibold text-slate-700">"Pelanggan"</span> di Spreadsheet Anda.
+          </p>
+        </div>
+        
+        <div className="flex items-center gap-2 w-full md:w-auto">
+          <button
+            type="button"
+            onClick={async () => {
+              try {
+                await pullCustomersFromGoogleSheets();
+                alert("Berhasil menarik data pelanggan dari Google Sheets!");
+              } catch (e: any) {
+                alert(e.message || "Gagal menyinkronkan data.");
+              }
+            }}
+            disabled={isSyncing}
+            className={`flex-1 md:flex-initial px-3.5 py-1.5 bg-white hover:bg-slate-50 text-slate-700 font-bold text-[10px] rounded-lg border border-slate-200 flex items-center justify-center gap-1.5 transition shadow-sm ${isSyncing ? 'opacity-50 cursor-not-allowed' : ''}`}
+          >
+            <RefreshCw className={`h-3 w-3 text-indigo-600 ${isSyncing ? 'animate-spin' : ''}`} />
+            <span>Tarik Pelanggan</span>
+          </button>
+          
+          <button
+            type="button"
+            onClick={async () => {
+              const success = await pushCustomersToGoogleSheets();
+              if (success) {
+                alert("Berhasil mengunggah semua pelanggan lokal ke Google Sheets!");
+              } else {
+                alert("Gagal mengunggah pelanggan. Pastikan URL Google Apps Script sudah benar.");
+              }
+            }}
+            disabled={isSyncing}
+            className={`flex-1 md:flex-initial px-3.5 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-[10px] rounded-lg border border-indigo-200 flex items-center justify-center gap-1.5 transition ${isSyncing ? 'opacity-50 cursor-not-allowed' : ''}`}
+          >
+            <Upload className="h-3.5 w-3.5" />
+            <span>Unggah Pelanggan</span>
           </button>
         </div>
       </div>

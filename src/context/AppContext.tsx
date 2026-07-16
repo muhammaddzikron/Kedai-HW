@@ -126,6 +126,9 @@ interface AppContextType {
   googleAppsScriptUrl: string;
   updateGoogleConfig: (sheetUrl: string, driveUrl: string, appsScriptUrl?: string) => void;
   syncProductsFromGoogleSheets: () => Promise<void>;
+  pushProductsToGoogleSheets: (currentProducts?: Product[]) => Promise<boolean>;
+  pushCustomersToGoogleSheets: (currentCustomers?: Customer[]) => Promise<boolean>;
+  pullCustomersFromGoogleSheets: () => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -738,44 +741,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };
-    setProducts((prev) => [newProduct, ...prev]);
+    setProducts((prev) => {
+      const updated = [newProduct, ...prev];
+      pushProductsToGoogleSheets(updated);
+      return updated;
+    });
     addAuditLog('ADD_PRODUCT', 'PRODUCT', `Added new product: ${product.name} (${product.sku})`);
-
-    // Real-time integration: Post new product to Google Sheets via Apps Script Web App
-    if (googleAppsScriptUrl && googleAppsScriptUrl.includes('script.google.com')) {
-      const payload = {
-        name: newProduct.name,
-        sku: newProduct.sku,
-        category: newProduct.category,
-        brand: newProduct.brand || 'Kedai Kepanduan',
-        costPrice: newProduct.costPrice,
-        sellingPrice: newProduct.sellingPrice,
-        stock: newProduct.stock,
-        image: newProduct.image
-      };
-
-      fetch(googleAppsScriptUrl, {
-        method: 'POST',
-        mode: 'no-cors', // Avoid potential CORS redirect blocks
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(payload)
-      })
-      .then(() => {
-        addAuditLog('POST_APPS_SCRIPT_SUCCESS', 'PRODUCT', `Produk "${product.name}" berhasil ditambahkan ke Google Sheets via Apps Script!`);
-      })
-      .catch((err) => {
-        console.error('Failed to post product to Apps Script:', err);
-        addAuditLog('POST_APPS_SCRIPT_FAILED', 'PRODUCT', `Gagal menambahkan produk ke Google Sheets: ${err.message || err}`);
-      });
-    }
   };
 
   const editProduct = (id: string, updated: Partial<Product>) => {
-    setProducts((prev) =>
-      prev.map((p) => (p.id === id ? { ...p, ...updated, updatedAt: new Date().toISOString() } : p))
-    );
+    setProducts((prev) => {
+      const updatedList = prev.map((p) => (p.id === id ? { ...p, ...updated, updatedAt: new Date().toISOString() } : p));
+      pushProductsToGoogleSheets(updatedList);
+      return updatedList;
+    });
     const prod = products.find((p) => p.id === id);
     if (prod) {
       addAuditLog('EDIT_PRODUCT', 'PRODUCT', `Updated product: ${prod.name}`);
@@ -783,9 +762,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const deleteProduct = (id: string) => {
-    setProducts((prev) =>
-      prev.map((p) => (p.id === id ? { ...p, isDeleted: true } : p))
-    );
+    setProducts((prev) => {
+      const updatedList = prev.map((p) => (p.id === id ? { ...p, isDeleted: true } : p));
+      pushProductsToGoogleSheets(updatedList);
+      return updatedList;
+    });
     const prod = products.find((p) => p.id === id);
     if (prod) {
       addAuditLog('DELETE_PRODUCT', 'PRODUCT', `Soft deleted product: ${prod.name}`);
@@ -793,9 +774,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const deleteProducts = (ids: string[]) => {
-    setProducts((prev) =>
-      prev.map((p) => (ids.includes(p.id) ? { ...p, isDeleted: true } : p))
-    );
+    setProducts((prev) => {
+      const updatedList = prev.map((p) => (ids.includes(p.id) ? { ...p, isDeleted: true } : p));
+      pushProductsToGoogleSheets(updatedList);
+      return updatedList;
+    });
     addAuditLog('DELETE_PRODUCTS', 'PRODUCT', `Bulk soft deleted ${ids.length} products`);
   };
 
@@ -817,14 +800,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       id: `c-${Date.now()}`,
       createdAt: new Date().toISOString()
     };
-    setCustomers((prev) => [...prev, newCust]);
+    setCustomers((prev) => {
+      const updated = [newCust, ...prev];
+      pushCustomersToGoogleSheets(updated);
+      return updated;
+    });
     addAuditLog('ADD_CUSTOMER', 'CUSTOMER', `Added member customer: ${cust.name}`);
   };
 
   const editCustomer = (id: string, updatedFields: Partial<Customer>) => {
-    setCustomers((prev) =>
-      prev.map((c) => (c.id === id ? { ...c, ...updatedFields } : c))
-    );
+    setCustomers((prev) => {
+      const updatedList = prev.map((c) => (c.id === id ? { ...c, ...updatedFields } : c));
+      pushCustomersToGoogleSheets(updatedList);
+      return updatedList;
+    });
     const found = customers.find((c) => c.id === id);
     if (found) {
       addAuditLog('EDIT_CUSTOMER', 'CUSTOMER', `Updated customer details for: ${found.name}`);
@@ -835,21 +824,31 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setCustomers((prev) => {
       const existingIds = new Set(prev.map((c) => c.id));
       const filteredNew = newCusts.filter((c) => !existingIds.has(c.id));
-      return [...filteredNew, ...prev];
+      const updated = [...filteredNew, ...prev];
+      pushCustomersToGoogleSheets(updated);
+      return updated;
     });
     addAuditLog('IMPORT_CUSTOMERS', 'CUSTOMER', `Imported ${newCusts.length} customers via CSV file`);
   };
 
   const deleteCustomer = (id: string) => {
     const cust = customers.find((c) => c.id === id);
-    setCustomers((prev) => prev.filter((c) => c.id !== id));
+    setCustomers((prev) => {
+      const updated = prev.filter((c) => c.id !== id);
+      pushCustomersToGoogleSheets(updated);
+      return updated;
+    });
     if (cust) {
       addAuditLog('DELETE_CUSTOMER', 'CUSTOMER', `Deleted customer: ${cust.name}`);
     }
   };
 
   const deleteCustomers = (ids: string[]) => {
-    setCustomers((prev) => prev.filter((c) => !ids.includes(c.id)));
+    setCustomers((prev) => {
+      const updated = prev.filter((c) => !ids.includes(c.id));
+      pushCustomersToGoogleSheets(updated);
+      return updated;
+    });
     addAuditLog('DELETE_CUSTOMERS', 'CUSTOMER', `Bulk deleted ${ids.length} customers`);
   };
 
@@ -1548,6 +1547,121 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  const pushProductsToGoogleSheets = async (currentProducts?: Product[]) => {
+    const listToSync = currentProducts || products;
+    const activeProducts = listToSync.filter(p => !p.isDeleted);
+
+    if (!googleAppsScriptUrl || !googleAppsScriptUrl.includes('script.google.com')) {
+      console.warn('Google Apps Script Web App URL is not configured.');
+      return false;
+    }
+
+    try {
+      const response = await fetch(googleAppsScriptUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'text/plain'
+        },
+        body: JSON.stringify({
+          action: 'sync_all_products',
+          products: activeProducts
+        })
+      });
+
+      if (response.ok) {
+        const json = await response.json();
+        if (json.status === 'success') {
+          addAuditLog('PUSH_SHEET_SUCCESS', 'PRODUCT', `Uploaded and synced ${activeProducts.length} active products to Google Sheets`);
+          return true;
+        }
+      }
+      return false;
+    } catch (err) {
+      console.error('Error pushing products to Google Sheets:', err);
+      return false;
+    }
+  };
+
+  const pushCustomersToGoogleSheets = async (currentCustomers?: Customer[]) => {
+    const listToSync = currentCustomers || customers;
+
+    if (!googleAppsScriptUrl || !googleAppsScriptUrl.includes('script.google.com')) {
+      console.warn('Google Apps Script Web App URL is not configured.');
+      return false;
+    }
+
+    try {
+      const response = await fetch(googleAppsScriptUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'text/plain'
+        },
+        body: JSON.stringify({
+          action: 'sync_all_customers',
+          customers: listToSync
+        })
+      });
+
+      if (response.ok) {
+        const json = await response.json();
+        if (json.status === 'success') {
+          addAuditLog('PUSH_SHEET_SUCCESS', 'CUSTOMER', `Uploaded and synced ${listToSync.length} customers to Google Sheets`);
+          return true;
+        }
+      }
+      return false;
+    } catch (err) {
+      console.error('Error pushing customers to Google Sheets:', err);
+      return false;
+    }
+  };
+
+  const pullCustomersFromGoogleSheets = async () => {
+    if (!googleAppsScriptUrl || !googleAppsScriptUrl.includes('script.google.com')) {
+      throw new Error('URL Google Apps Script belum dikonfigurasi di Pengaturan.');
+    }
+
+    setIsSyncing(true);
+    addAuditLog('SYNC_CUSTOMERS_START', 'CUSTOMER', 'Memulai sinkronisasi data pelanggan dari Google Sheets');
+
+    try {
+      const response = await fetch(`${googleAppsScriptUrl}?type=pelanggan`);
+      if (!response.ok) {
+        throw new Error('Gagal menghubungi server Apps Script.');
+      }
+
+      const json = await response.json();
+      if (json.status === 'success' && Array.isArray(json.data)) {
+        const importedCustomers: Customer[] = json.data.map((row: any, idx: number) => {
+          return {
+            id: row["ID Pelanggan"] || `c-sheet-${idx}-${Date.now()}`,
+            customId: row["ID Pelanggan"] || "",
+            name: row["Nama"] || row["nama"] || `Pelanggan ${idx}`,
+            phone: row["Telepon"] || row["phone"] || row["telepon"] || "-",
+            email: row["Email"] || row["email"] || "-",
+            group: (row["Grup"] || row["group"] || "RETAIL").toUpperCase() as any,
+            tier: (row["Tingkatan"] || row["tier"] || "SILVER").toUpperCase() as any,
+            membershipPoints: parseInt(row["Poin Reward"] || row["points"] || "0") || 0,
+            cashbackBalance: parseFloat(row["Saldo Cashback"] || row["balance"] || "0") || 0,
+            address: row["Alamat"] || row["address"] || "",
+            createdAt: row["Tanggal Terdaftar"] || new Date().toISOString()
+          };
+        });
+
+        setCustomers(importedCustomers);
+        addAuditLog('SYNC_CUSTOMERS_SUCCESS', 'CUSTOMER', `Berhasil menyinkronkan ${importedCustomers.length} pelanggan dari Google Sheets!`);
+      } else {
+        throw new Error(json.message || 'Format data Apps Script tidak valid.');
+      }
+    } catch (err: any) {
+      console.error('Error pulling customers from Google Sheets:', err);
+      addAuditLog('SYNC_CUSTOMERS_FAILED', 'CUSTOMER', `Gagal menyinkronkan pelanggan: ${err.message || err}`);
+      throw err;
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
   return (
     <AppContext.Provider
       value={{
@@ -1626,7 +1740,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         googleDriveUrl,
         googleAppsScriptUrl,
         updateGoogleConfig,
-        syncProductsFromGoogleSheets
+        syncProductsFromGoogleSheets,
+        pushProductsToGoogleSheets,
+        pushCustomersToGoogleSheets,
+        pullCustomersFromGoogleSheets
       }}
     >
       {children}

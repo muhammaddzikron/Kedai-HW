@@ -6,12 +6,12 @@
  * 
  * Fitur:
  * 1. Membuat Menu Kustom di Google Sheets untuk sinkronisasi.
- * 2. Menyediakan API Endpoint (doGet) untuk menarik data produk ke Aplikasi.
- * 3. Menyediakan API Endpoint (doPost) untuk menyimpan produk baru dari Aplikasi.
+ * 2. Menyediakan API Endpoint (doGet) untuk menarik data produk/pelanggan ke Aplikasi.
+ * 3. Menyediakan API Endpoint (doPost) untuk menyimpan/menghapus/mengedit data secara real-time.
  */
 
 // Konfigurasi Header Kolom sesuai template data user
-var HEADERS = [
+var PRODUCT_HEADERS = [
   "Gambar produk",
   "Tindakan",
   "Produk",
@@ -26,41 +26,39 @@ var HEADERS = [
   "SKU"
 ];
 
+var CUSTOMER_HEADERS = [
+  "ID Pelanggan",
+  "Nama",
+  "Telepon",
+  "Email",
+  "Grup",
+  "Tingkatan",
+  "Poin Reward",
+  "Saldo Cashback",
+  "Alamat",
+  "Tanggal Terdaftar"
+];
+
 /**
  * 1. TRIGGER ON OPEN: Membuat menu kustom saat spreadsheet dibuka
  */
 function onOpen() {
   var ui = SpreadsheetApp.getUi();
   ui.createMenu('Kedai Kepanduan Sync')
-      .addItem('Inisialisasi Header Kolom', 'initializeSheetHeaders')
+      .addItem('Inisialisasi Semua Sheet', 'initializeAllSheets')
       .addSeparator()
-      .addItem('Sinkronkan Data Produk Baru', 'syncConfirmation')
+      .addItem('Sinkronkan Data Baru', 'syncConfirmation')
       .addToUi();
 }
 
 /**
- * Membuat baris header secara otomatis jika kosong
+ * Membuat baris header secara otomatis jika belum ada
  */
-function initializeSheetHeaders() {
-  var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
-  
-  // Pastikan baris pertama berisi header kolom yang tepat
-  if (sheet.getLastRow() === 0) {
-    sheet.getRange(1, 1, 1, HEADERS.length).setValues([HEADERS]);
-    sheet.getRange(1, 1, 1, HEADERS.length).setFontWeight("bold").setBackground("#e0f2fe");
-    SpreadsheetApp.getUi().alert("Inisialisasi Sukses: Header kolom Kedai Kepanduan berhasil dibuat.");
-  } else {
-    var response = SpreadsheetApp.getUi().alert(
-      "Konfirmasi", 
-      "Sheet sudah memiliki isi. Apakah Anda ingin menimpa baris pertama dengan format header Kedai Kepanduan?", 
-      SpreadsheetApp.getUi().ButtonSet.YES_NO
-    );
-    if (response == SpreadsheetApp.getUi().Button.YES) {
-      sheet.getRange(1, 1, 1, HEADERS.length).setValues([HEADERS]);
-      sheet.getRange(1, 1, 1, HEADERS.length).setFontWeight("bold").setBackground("#e0f2fe");
-      SpreadsheetApp.getUi().alert("Header berhasil diperbarui.");
-    }
-  }
+function initializeAllSheets() {
+  var spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+  getOrCreateSheet(spreadsheet, "Produk", PRODUCT_HEADERS);
+  getOrCreateSheet(spreadsheet, "Pelanggan", CUSTOMER_HEADERS);
+  SpreadsheetApp.getUi().alert("Inisialisasi Sukses: Sheet 'Produk' dan 'Pelanggan' berhasil disiapkan dengan struktur yang benar.");
 }
 
 function syncConfirmation() {
@@ -72,20 +70,50 @@ function syncConfirmation() {
 }
 
 /**
+ * Helper untuk membuat atau mengambil sheet
+ */
+function getOrCreateSheet(spreadsheet, name, headers) {
+  var sheet = spreadsheet.getSheetByName(name);
+  if (!sheet) {
+    sheet = spreadsheet.insertSheet(name);
+    sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+    sheet.getRange(1, 1, 1, headers.length).setFontWeight("bold").setBackground("#e0f2fe");
+  }
+  return sheet;
+}
+
+/**
+ * Helper untuk membuat respon JSON dengan CORS header
+ */
+function createJSONResponse(data) {
+  return ContentService.createTextOutput(JSON.stringify(data))
+    .setMimeType(ContentService.MimeType.JSON)
+    .setHeader("Access-Control-Allow-Origin", "*");
+}
+
+/**
  * 2. API ENDPOINT GET: Mengembalikan data dari Spreadsheet dalam format JSON
- * Berguna jika Anda ingin menarik data produk via API Web Service.
+ * Mendukung parameter: type = "produk" atau "pelanggan"
  */
 function doGet(e) {
   try {
-    var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
-    var data = sheet.getDataRange().getValues();
+    var type = (e && e.parameter && e.parameter.type) || "produk";
+    var spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+    var sheet;
     
+    if (type === "pelanggan" || type === "customers") {
+      sheet = getOrCreateSheet(spreadsheet, "Pelanggan", CUSTOMER_HEADERS);
+    } else {
+      sheet = getOrCreateSheet(spreadsheet, "Produk", PRODUCT_HEADERS);
+    }
+    
+    var data = sheet.getDataRange().getValues();
     if (data.length < 2) {
-      return ContentService.createTextOutput(JSON.stringify({
+      return createJSONResponse({
         status: "success",
-        message: "Spreadsheet kosong",
+        message: "Sheet kosong",
         data: []
-      })).setMimeType(ContentService.MimeType.JSON);
+      });
     }
     
     var headers = data[0];
@@ -100,44 +128,101 @@ function doGet(e) {
       jsonArray.push(record);
     }
     
-    // Support CORS
-    return ContentService.createTextOutput(JSON.stringify({
+    return createJSONResponse({
       status: "success",
       count: jsonArray.length,
       data: jsonArray
-    }))
-    .setMimeType(ContentService.MimeType.JSON)
-    .setHeader("Access-Control-Allow-Origin", "*");
+    });
     
   } catch (err) {
-    return ContentService.createTextOutput(JSON.stringify({
+    return createJSONResponse({
       status: "error",
       message: err.toString()
-    }))
-    .setMimeType(ContentService.MimeType.JSON)
-    .setHeader("Access-Control-Allow-Origin", "*");
+    });
   }
 }
 
 /**
- * 3. API ENDPOINT POST: Menerima data produk baru dari Aplikasi dan menambahkannya ke Spreadsheet
+ * 3. API ENDPOINT POST: Menerima aksi (sync_all, add, delete, edit) dari Aplikasi
  */
 function doPost(e) {
   try {
     var postData = JSON.parse(e.postData.contents);
-    var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+    var spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
     
-    // Pastikan header diinisialisasi
-    if (sheet.getLastRow() === 0) {
-      sheet.getRange(1, 1, 1, HEADERS.length).setValues([HEADERS]);
+    // --- AKSI 1: Sinkronisasi Massal Semua Produk ---
+    if (postData.action === "sync_all_products" && Array.isArray(postData.products)) {
+      var sheet = getOrCreateSheet(spreadsheet, "Produk", PRODUCT_HEADERS);
+      
+      // Hapus semua data lama (baris 2 ke bawah)
+      var lastRow = sheet.getLastRow();
+      if (lastRow > 1) {
+        sheet.deleteRows(2, lastRow - 1);
+      }
+      
+      // Masukkan semua data produk baru
+      postData.products.forEach(function(product) {
+        var newRow = [];
+        newRow.push(product.image || "");               // Gambar produk
+        newRow.push("TindakanToggle");                   // Tindakan
+        newRow.push(product.name || "");                // Produk
+        newRow.push(product.brand || "Kedai HW");       // Lokasi Bisnis
+        newRow.push(product.costPrice || 0);            // Harga Pembelian Satuan
+        newRow.push(product.sellingPrice || 0);         // Harga penjualan
+        newRow.push((product.stock || 0) + " Pieces");  // Stok saat ini
+        newRow.push("Tunggal");                          // Jenis Produk
+        newRow.push(product.category || "Atribut HW");  // Kategori
+        newRow.push(product.brand || "Kedai HW");       // Merek
+        newRow.push("");                                 // Pajak
+        newRow.push(product.sku || "");                 // SKU
+        sheet.appendRow(newRow);
+      });
+      
+      return createJSONResponse({
+        status: "success",
+        message: "Berhasil menyinkronkan " + postData.products.length + " produk ke Google Sheets!"
+      });
     }
     
+    // --- AKSI 2: Sinkronisasi Massal Semua Pelanggan ---
+    if (postData.action === "sync_all_customers" && Array.isArray(postData.customers)) {
+      var sheet = getOrCreateSheet(spreadsheet, "Pelanggan", CUSTOMER_HEADERS);
+      
+      // Hapus semua data lama (baris 2 ke bawah)
+      var lastRow = sheet.getLastRow();
+      if (lastRow > 1) {
+        sheet.deleteRows(2, lastRow - 1);
+      }
+      
+      // Masukkan semua data pelanggan baru
+      postData.customers.forEach(function(customer) {
+        var newRow = [];
+        newRow.push(customer.customId || customer.id);  // ID Pelanggan
+        newRow.push(customer.name || "");               // Nama
+        newRow.push(customer.phone || "");              // Telepon
+        newRow.push(customer.email || "");              // Email
+        newRow.push(customer.group || "RETAIL");        // Grup
+        newRow.push(customer.tier || "SILVER");         // Tingkatan
+        newRow.push(customer.membershipPoints || 0);    // Poin Reward
+        newRow.push(customer.cashbackBalance || 0);     // Saldo Cashback
+        newRow.push(customer.address || "");            // Alamat
+        newRow.push(customer.createdAt || "");          // Tanggal Terdaftar
+        sheet.appendRow(newRow);
+      });
+      
+      return createJSONResponse({
+        status: "success",
+        message: "Berhasil menyinkronkan " + postData.customers.length + " pelanggan ke Google Sheets!"
+      });
+    }
+    
+    // --- DEFAULT LEGACY BEHAVIOR: Tambah Produk Tunggal ---
+    var sheet = getOrCreateSheet(spreadsheet, "Produk", PRODUCT_HEADERS);
     var newRow = [];
-    // Petakan nilai dari objek POST ke kolom sheet yang sesuai
     newRow.push(postData.image || "");               // Gambar produk
     newRow.push("TindakanToggle");                   // Tindakan
     newRow.push(postData.name || "");                // Produk
-    newRow.push(postData.brand || "Kedai HW");       // Lokasi Bisnis / Merek
+    newRow.push(postData.brand || "Kedai HW");       // Lokasi Bisnis
     newRow.push(postData.costPrice || 0);            // Harga Pembelian Satuan
     newRow.push(postData.sellingPrice || 0);         // Harga penjualan
     newRow.push((postData.stock || 0) + " Pieces");  // Stok saat ini
@@ -149,19 +234,15 @@ function doPost(e) {
     
     sheet.appendRow(newRow);
     
-    return ContentService.createTextOutput(JSON.stringify({
+    return createJSONResponse({
       status: "success",
       message: "Produk '" + postData.name + "' berhasil ditambahkan ke Spreadsheet!"
-    }))
-    .setMimeType(ContentService.MimeType.JSON)
-    .setHeader("Access-Control-Allow-Origin", "*");
+    });
     
   } catch (err) {
-    return ContentService.createTextOutput(JSON.stringify({
+    return createJSONResponse({
       status: "error",
       message: err.toString()
-    }))
-    .setMimeType(ContentService.MimeType.JSON)
-    .setHeader("Access-Control-Allow-Origin", "*");
+    });
   }
 }
