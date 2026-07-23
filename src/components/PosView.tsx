@@ -5,7 +5,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
-import { Product, ProductVariant, ProductModifier, Customer, Promotion } from '../types';
+import { Product, ProductVariant, ProductModifier, Customer, Promotion, Order, PaymentMethod } from '../types';
 import {
   Search,
   Filter,
@@ -25,7 +25,16 @@ import {
   Notebook,
   AlertCircle,
   HelpCircle,
-  Truck
+  Truck,
+  Edit3,
+  Printer,
+  RotateCcw,
+  FileText,
+  CheckCircle,
+  Package,
+  Calendar,
+  DollarSign,
+  Receipt
 } from 'lucide-react';
 
 export default function PosView({ onCheckoutSuccess }: { onCheckoutSuccess: (order: any) => void }) {
@@ -33,6 +42,9 @@ export default function PosView({ onCheckoutSuccess }: { onCheckoutSuccess: (ord
     products,
     customers,
     promotions,
+    orders,
+    updateOrder,
+    refundOrder,
     cart,
     addToCart,
     removeFromCart,
@@ -74,6 +86,92 @@ export default function PosView({ onCheckoutSuccess }: { onCheckoutSuccess: (ord
   const [showCustomerModal, setShowCustomerModal] = useState(false);
   const [showHoldModal, setShowHoldModal] = useState(false);
   const [holdName, setHoldName] = useState('');
+  
+  // Rekap Transaksi & Edit State
+  const [showRecentTransactionsModal, setShowRecentTransactionsModal] = useState(false);
+  const [recentSearchQuery, setRecentSearchQuery] = useState('');
+  const [recentFilterStatus, setRecentFilterStatus] = useState<'ALL' | 'PAID' | 'UNPAID' | 'REFUNDED'>('ALL');
+
+  const [editingOrder, setEditingOrder] = useState<Order | null>(null);
+  const [editFormCustomerName, setEditFormCustomerName] = useState('');
+  const [editFormCustomerPhone, setEditFormCustomerPhone] = useState('');
+  const [editFormPaymentMethod, setEditFormPaymentMethod] = useState<'CASH' | 'QRIS' | 'CARD' | 'E-WALLET' | 'TRANSFER'>('CASH');
+  const [editFormPaymentStatus, setEditFormPaymentStatus] = useState<'PAID' | 'UNPAID' | 'PARTIAL' | 'REFUNDED'>('PAID');
+  const [editFormShippingFee, setEditFormShippingFee] = useState<number>(0);
+  const [editFormDiscount, setEditFormDiscount] = useState<number>(0);
+  const [editFormItems, setEditFormItems] = useState<Order['items']>([]);
+
+  // Image error tracker
+  const [imageErrors, setImageErrors] = useState<Record<string, boolean>>({});
+  const handleImageError = (id: string) => {
+    setImageErrors((prev) => ({ ...prev, [id]: true }));
+  };
+
+  const filteredRecentOrders = useMemo(() => {
+    return (orders || [])
+      .filter((o) => {
+        const q = recentSearchQuery.toLowerCase().trim();
+        const matchesSearch =
+          !q ||
+          o.orderNo.toLowerCase().includes(q) ||
+          (o.customerName && o.customerName.toLowerCase().includes(q)) ||
+          (o.cashierName && o.cashierName.toLowerCase().includes(q));
+
+        const matchesStatus =
+          recentFilterStatus === 'ALL' || o.paymentStatus === recentFilterStatus;
+        return matchesSearch && matchesStatus;
+      })
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  }, [orders, recentSearchQuery, recentFilterStatus]);
+
+  const handleStartEditOrder = (order: Order) => {
+    setEditingOrder(order);
+    setEditFormCustomerName(order.customerName || 'Pelanggan Umum');
+    setEditFormCustomerPhone(order.customerPhone || '');
+    setEditFormPaymentMethod(order.paymentMethod || 'CASH');
+    setEditFormPaymentStatus(order.paymentStatus || 'PAID');
+    setEditFormShippingFee(order.shippingFee || 0);
+    setEditFormDiscount(order.discount || 0);
+    setEditFormItems(order.items ? JSON.parse(JSON.stringify(order.items)) : []);
+  };
+
+  const handleSaveEditOrder = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingOrder) return;
+
+    const subtotal = editFormItems.reduce((acc, item) => acc + item.price * item.quantity, 0);
+    const total = Math.max(0, subtotal - editFormDiscount + editFormShippingFee);
+
+    updateOrder(editingOrder.id, {
+      customerName: editFormCustomerName,
+      customerPhone: editFormCustomerPhone,
+      paymentMethod: editFormPaymentMethod,
+      paymentStatus: editFormPaymentStatus,
+      shippingFee: editFormShippingFee,
+      discount: editFormDiscount,
+      items: editFormItems,
+      subtotal,
+      total
+    });
+
+    alert(`Data Transaksi #${editingOrder.orderNo} berhasil diperbarui!`);
+    setEditingOrder(null);
+  };
+
+  const handleUpdateEditItemQty = (index: number, delta: number) => {
+    setEditFormItems((prev) => {
+      const next = [...prev];
+      const item = { ...next[index] };
+      const newQty = item.quantity + delta;
+      if (newQty <= 0) {
+        return next.filter((_, i) => i !== index);
+      }
+      item.quantity = newQty;
+      item.subtotal = item.price * newQty;
+      next[index] = item;
+      return next;
+    });
+  };
   
   // Shift Lock Modal State
   const [shiftStartingCash, setShiftStartingCash] = useState('200000');
@@ -329,7 +427,7 @@ export default function PosView({ onCheckoutSuccess }: { onCheckoutSuccess: (ord
                 placeholder="Cari produk berdasarkan Nama, SKU, atau Barcode..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:outline-none focus:border-emerald-500 focus:bg-white"
+                className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:outline-none focus:border-indigo-500 focus:bg-white"
               />
               {searchQuery && (
                 <button onClick={() => setSearchQuery('')} className="absolute right-3 top-2.5 text-slate-400">
@@ -337,6 +435,16 @@ export default function PosView({ onCheckoutSuccess }: { onCheckoutSuccess: (ord
                 </button>
               )}
             </div>
+
+            {/* Rekap Transaksi Button */}
+            <button
+              onClick={() => setShowRecentTransactionsModal(true)}
+              className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 transition shadow-xs shrink-0"
+              title="Lihat & Edit Rekap Transaksi Kasir Terakhir"
+            >
+              <History className="h-4 w-4" />
+              <span className="hidden sm:inline">Rekap Transaksi</span>
+            </button>
           </div>
 
           {/* Categories Tab list */}
@@ -358,67 +466,83 @@ export default function PosView({ onCheckoutSuccess }: { onCheckoutSuccess: (ord
         </div>
 
         {/* Products Grid list */}
-        <div className="flex-1 overflow-y-auto p-4 grid grid-cols-2 sm:grid-cols-3 gap-3.5">
+        <div className="flex-1 overflow-y-auto p-4 grid grid-cols-2 sm:grid-cols-3 auto-rows-max gap-3.5 content-start">
           {filteredProducts.map((p) => {
             const isLow = p.stock <= p.minStock;
+            const hasErr = imageErrors[p.id];
             return (
               <div
                 key={p.id}
                 onClick={() => handleItemClick(p)}
-                className="bg-white border border-slate-200/80 rounded-2xl p-3 flex flex-col justify-between hover:shadow-md cursor-pointer group transition select-none relative overflow-hidden"
+                className="bg-white border border-slate-200/90 rounded-2xl p-3 flex flex-col justify-between hover:border-indigo-400 hover:shadow-md cursor-pointer group transition select-none relative h-full overflow-hidden"
               >
                 {/* Variant flag indicator */}
                 {(p.variants.length > 0 || p.modifiers.length > 0) && (
-                  <span className="absolute right-2 top-2 bg-emerald-50 text-emerald-600 text-[8px] font-bold px-1.5 py-0.2 rounded border border-emerald-100 uppercase">
+                  <span className="absolute right-2 top-2 z-10 bg-indigo-600 text-white text-[8px] font-black px-1.5 py-0.5 rounded-full shadow-xs uppercase tracking-wider">
                     Opsi
                   </span>
                 )}
 
                 <div className="space-y-2">
-                  {/* Photo container */}
-                  <div className="aspect-square w-full rounded-xl bg-slate-100 overflow-hidden relative border border-slate-100">
-                    {p.image ? (
+                  {/* Photo container with fixed aspect/height so it never collapses */}
+                  <div className="h-28 sm:h-36 w-full rounded-xl bg-slate-100 overflow-hidden relative border border-slate-100 shrink-0">
+                    {p.image && !hasErr ? (
                       <img
                         src={p.image}
                         alt={p.name}
                         referrerPolicy="no-referrer"
-                        className="w-full h-full object-cover group-hover:scale-105 transition duration-200"
+                        onError={() => handleImageError(p.id)}
+                        className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
                       />
                     ) : (
-                      <div className="w-full h-full flex items-center justify-center text-slate-300 font-bold text-xl uppercase">
-                        {p.name.slice(0, 2)}
+                      <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-slate-100 to-slate-200/80 text-slate-400 p-2 text-center">
+                        <Package className="h-7 w-7 text-slate-400 mb-1 shrink-0" />
+                        <span className="font-bold text-[9px] text-slate-500 uppercase tracking-wider line-clamp-1">
+                          {p.category}
+                        </span>
                       </div>
                     )}
 
                     {/* Stock status overlay */}
                     {p.stock === 0 ? (
-                      <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
-                        <span className="text-white text-[10px] font-bold tracking-widest uppercase">
-                          HABIS
+                      <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-[1px] flex items-center justify-center p-1 text-center">
+                        <span className="text-rose-400 text-[10px] font-black tracking-widest uppercase bg-rose-950/80 px-2 py-0.5 rounded border border-rose-800">
+                          STOK HABIS
                         </span>
                       </div>
                     ) : isLow ? (
-                      <div className="absolute bottom-1.5 left-1.5 bg-amber-500/90 text-white text-[8px] font-extrabold px-1.5 py-0.2 rounded">
-                        STOK TIPIS
+                      <div className="absolute bottom-1.5 left-1.5 bg-amber-500 text-white text-[8px] font-black px-1.5 py-0.5 rounded shadow-xs uppercase">
+                        Stok Sisa {p.stock}
                       </div>
                     ) : null}
                   </div>
 
-                  <div className="space-y-0.5">
-                    <span className="text-[9px] font-bold text-slate-400 block uppercase font-mono leading-none">
-                      {p.sku}
-                    </span>
-                    <h3 className="text-xs font-bold text-slate-800 line-clamp-2 leading-tight group-hover:text-emerald-600">
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between gap-1">
+                      <span className="text-[9px] font-mono font-bold text-slate-400 block uppercase tracking-tight truncate">
+                        {p.sku || 'SKU-00'}
+                      </span>
+                      <span className="text-[9px] font-bold text-slate-400 truncate">
+                        {p.category}
+                      </span>
+                    </div>
+                    <h3 className="text-xs font-bold text-slate-800 line-clamp-2 leading-snug group-hover:text-indigo-600 transition-colors min-h-[2.1rem]">
                       {p.name}
                     </h3>
                   </div>
                 </div>
 
                 <div className="flex items-center justify-between mt-3 pt-2 border-t border-slate-100">
-                  <span className="text-xs font-extrabold text-slate-900 font-mono">
+                  <span className="text-xs font-black text-indigo-700 font-mono">
                     Rp {p.sellingPrice.toLocaleString('id-ID')}
                   </span>
-                  <span className="text-[9px] font-semibold text-slate-400">
+                  <span className={`text-[9px] font-extrabold px-1.5 py-0.5 rounded ${
+                    p.stock === 0 
+                      ? 'bg-rose-50 text-rose-600 border border-rose-200' 
+                      : isLow 
+                        ? 'bg-amber-50 text-amber-700 border border-amber-200' 
+                        : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                  }`}>
                     Stok: {p.stock}
                   </span>
                 </div>
@@ -1077,6 +1201,376 @@ export default function PosView({ onCheckoutSuccess }: { onCheckoutSuccess: (ord
                 </div>
               ))}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 5: REKAP TRANSAKSI TERAKHIR & EDIT DATA */}
+      {showRecentTransactionsModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4 backdrop-blur-xs">
+          <div className="bg-white rounded-3xl max-w-4xl w-full max-h-[90vh] flex flex-col border border-slate-200 shadow-2xl relative overflow-hidden animate-in fade-in zoom-in-95 duration-150 text-left">
+            {/* Header */}
+            <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50/80">
+              <div className="flex items-center gap-2.5">
+                <div className="h-10 w-10 bg-indigo-600 text-white rounded-2xl flex items-center justify-center shadow-md shadow-indigo-500/20">
+                  <History className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-slate-900 text-base">Rekap Transaksi Kasir Terakhir</h3>
+                  <p className="text-xs text-slate-500">Lihat histori, cetak ulang nota, dan edit data transaksi</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowRecentTransactionsModal(false)}
+                className="p-2 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 transition"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Filter Controls & Stats Summary */}
+            <div className="p-4 bg-slate-50 border-b border-slate-200 space-y-3">
+              {/* Quick Summary Cards */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                <div className="bg-white p-3 rounded-2xl border border-slate-200 shadow-2xs">
+                  <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">Total Transaksi</span>
+                  <span className="text-lg font-black text-slate-900">{filteredRecentOrders.length} Nota</span>
+                </div>
+                <div className="bg-white p-3 rounded-2xl border border-slate-200 shadow-2xs">
+                  <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">Total Omset Rekap</span>
+                  <span className="text-lg font-black text-indigo-700">
+                    Rp {filteredRecentOrders.reduce((sum, o) => sum + o.total, 0).toLocaleString('id-ID')}
+                  </span>
+                </div>
+                <div className="bg-white p-3 rounded-2xl border border-slate-200 shadow-2xs">
+                  <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">Pembayaran Tunai</span>
+                  <span className="text-lg font-black text-emerald-600">
+                    Rp {filteredRecentOrders.filter(o => o.paymentMethod === 'CASH').reduce((sum, o) => sum + o.total, 0).toLocaleString('id-ID')}
+                  </span>
+                </div>
+                <div className="bg-white p-3 rounded-2xl border border-slate-200 shadow-2xs">
+                  <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">Non-Tunai (QRIS/Bank)</span>
+                  <span className="text-lg font-black text-sky-600">
+                    Rp {filteredRecentOrders.filter(o => o.paymentMethod !== 'CASH').reduce((sum, o) => sum + o.total, 0).toLocaleString('id-ID')}
+                  </span>
+                </div>
+              </div>
+
+              {/* Search & Tabs */}
+              <div className="flex flex-col sm:flex-row gap-2">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+                  <input
+                    type="text"
+                    placeholder="Cari No. Invoice / Pelanggan / Kasir..."
+                    value={recentSearchQuery}
+                    onChange={(e) => setRecentSearchQuery(e.target.value)}
+                    className="w-full pl-9 pr-8 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:border-indigo-500"
+                  />
+                  {recentSearchQuery && (
+                    <button onClick={() => setRecentSearchQuery('')} className="absolute right-3 top-2.5 text-slate-400">
+                      <X className="h-4 w-4" />
+                    </button>
+                  )}
+                </div>
+
+                <div className="flex gap-1 overflow-x-auto pb-0.5 scrollbar-none">
+                  {(['ALL', 'PAID', 'UNPAID', 'REFUNDED'] as const).map((st) => (
+                    <button
+                      key={st}
+                      onClick={() => setRecentFilterStatus(st)}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition ${
+                        recentFilterStatus === st
+                          ? 'bg-slate-900 text-white'
+                          : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-100'
+                      }`}
+                    >
+                      {st === 'ALL' ? 'Semua Status' : st === 'PAID' ? 'Lunas (Paid)' : st === 'UNPAID' ? 'Belum Lunas' : 'Refunded'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* List of Orders */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-3">
+              {filteredRecentOrders.length === 0 ? (
+                <div className="py-16 text-center text-slate-400 space-y-2">
+                  <Receipt className="h-12 w-12 mx-auto stroke-1 text-slate-300" />
+                  <p className="font-bold text-sm">Tidak ada transaksi yang ditemukan.</p>
+                </div>
+              ) : (
+                filteredRecentOrders.map((order) => (
+                  <div key={order.id} className="bg-white border border-slate-200 rounded-2xl p-4 shadow-2xs hover:border-slate-300 transition space-y-3">
+                    <div className="flex flex-col sm:flex-row justify-between gap-2 sm:items-center pb-3 border-b border-slate-100">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-black text-slate-900 font-mono">#{order.orderNo}</span>
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-extrabold uppercase ${
+                            order.paymentStatus === 'PAID' 
+                              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' 
+                              : order.paymentStatus === 'REFUNDED'
+                                ? 'bg-rose-50 text-rose-700 border border-rose-200'
+                                : 'bg-amber-50 text-amber-700 border border-amber-200'
+                          }`}>
+                            {order.paymentStatus}
+                          </span>
+                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
+                            {order.paymentMethod}
+                          </span>
+                        </div>
+                        <div className="text-[11px] text-slate-500 font-medium mt-0.5">
+                          {new Date(order.date).toLocaleString('id-ID')} • Kasir: <span className="font-bold text-slate-700">{order.cashierName}</span> • Pelanggan: <span className="font-bold text-slate-700">{order.customerName || 'Guest'}</span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 self-end sm:self-center">
+                        <button
+                          onClick={() => handleStartEditOrder(order)}
+                          className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 font-bold text-xs rounded-xl flex items-center gap-1 transition"
+                        >
+                          <Edit3 className="h-3.5 w-3.5" />
+                          <span>Edit Data</span>
+                        </button>
+                        <button
+                          onClick={() => {
+                            setShowRecentTransactionsModal(false);
+                            onCheckoutSuccess(order);
+                          }}
+                          className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 font-bold text-xs rounded-xl flex items-center gap-1 transition"
+                        >
+                          <Printer className="h-3.5 w-3.5" />
+                          <span>Cetak Struk</span>
+                        </button>
+                        {order.paymentStatus === 'PAID' && (
+                          <button
+                            onClick={() => {
+                              if (confirm(`Apakah Anda yakin ingin merefund transaksi #${order.orderNo}? Stok akan dikembalikan otomatis.`)) {
+                                refundOrder(order.id);
+                              }
+                            }}
+                            className="p-1.5 text-rose-600 hover:bg-rose-50 border border-rose-200 rounded-xl transition"
+                            title="Refund Transaksi"
+                          >
+                            <RotateCcw className="h-4 w-4" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Order Items Detail */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                      <div className="space-y-1">
+                        <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">Daftar Produk:</span>
+                        {order.items.map((item, idx) => (
+                          <div key={idx} className="flex justify-between font-semibold text-slate-700">
+                            <span>{item.quantity}x {item.productName} {item.variantName ? `(${item.variantName})` : ''}</span>
+                            <span className="font-mono">Rp {item.subtotal.toLocaleString('id-ID')}</span>
+                          </div>
+                        ))}
+                      </div>
+
+                      <div className="bg-slate-50 p-2.5 rounded-xl space-y-1 self-start border border-slate-100">
+                        <div className="flex justify-between text-slate-600">
+                          <span>Subtotal:</span>
+                          <span className="font-mono font-bold">Rp {order.subtotal.toLocaleString('id-ID')}</span>
+                        </div>
+                        {order.discount > 0 && (
+                          <div className="flex justify-between text-rose-600">
+                            <span>Diskon:</span>
+                            <span className="font-mono font-bold">-Rp {order.discount.toLocaleString('id-ID')}</span>
+                          </div>
+                        )}
+                        {(order.shippingFee || 0) > 0 && (
+                          <div className="flex justify-between text-indigo-700">
+                            <span>Ongkir:</span>
+                            <span className="font-mono font-bold">+Rp {order.shippingFee?.toLocaleString('id-ID')}</span>
+                          </div>
+                        )}
+                        <div className="flex justify-between text-slate-950 font-black pt-1 border-t border-slate-200 text-sm">
+                          <span>Grand Total:</span>
+                          <span className="text-indigo-700">Rp {order.total.toLocaleString('id-ID')}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* SUB-MODAL: EDIT TRANSACTION FORM */}
+      {editingOrder && (
+        <div className="fixed inset-0 z-60 bg-black/70 flex items-center justify-center p-4 backdrop-blur-xs">
+          <div className="bg-white rounded-3xl max-w-xl w-full p-6 border border-slate-200 shadow-2xl relative max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in-95 duration-150 text-left">
+            <button
+              onClick={() => setEditingOrder(null)}
+              className="absolute right-4 top-4 p-1 rounded-full bg-slate-100 text-slate-400 hover:text-slate-600"
+            >
+              <X className="h-4 w-4" />
+            </button>
+
+            <div className="flex items-center gap-2.5 mb-4">
+              <div className="h-10 w-10 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center shrink-0">
+                <Edit3 className="h-5 w-5" />
+              </div>
+              <div>
+                <h3 className="text-base font-extrabold text-slate-900">Edit Data Transaksi</h3>
+                <p className="text-xs text-slate-500">Ubah rincian nota #{editingOrder.orderNo}</p>
+              </div>
+            </div>
+
+            <form onSubmit={handleSaveEditOrder} className="space-y-4">
+              {/* Customer Details */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider block mb-1">
+                    Nama Pelanggan
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={editFormCustomerName}
+                    onChange={(e) => setEditFormCustomerName(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:bg-white focus:border-indigo-500"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider block mb-1">
+                    No. Telepon / WhatsApp
+                  </label>
+                  <input
+                    type="text"
+                    value={editFormCustomerPhone}
+                    onChange={(e) => setEditFormCustomerPhone(e.target.value)}
+                    placeholder="08123456789"
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:bg-white focus:border-indigo-500"
+                  />
+                </div>
+              </div>
+
+              {/* Payment Method & Status */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider block mb-1">
+                    Metode Pembayaran
+                  </label>
+                  <select
+                    value={editFormPaymentMethod}
+                    onChange={(e) => setEditFormPaymentMethod(e.target.value as any)}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:bg-white focus:border-indigo-500"
+                  >
+                    <option value="CASH">CASH (Tunai)</option>
+                    <option value="QRIS">QRIS</option>
+                    <option value="TRANSFER">TRANSFER BANK</option>
+                    <option value="CARD">KARTU DEBIT / KREDIT</option>
+                    <option value="E-WALLET">E-WALLET</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider block mb-1">
+                    Status Pembayaran
+                  </label>
+                  <select
+                    value={editFormPaymentStatus}
+                    onChange={(e) => setEditFormPaymentStatus(e.target.value as any)}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:bg-white focus:border-indigo-500"
+                  >
+                    <option value="PAID">PAID (Lunas)</option>
+                    <option value="UNPAID">UNPAID (Belum Lunas)</option>
+                    <option value="PARTIAL">PARTIAL (Bayar Sebagian)</option>
+                    <option value="REFUNDED">REFUNDED (Dikembalikan)</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Items List Modification */}
+              <div className="border border-slate-200 rounded-2xl p-3 bg-slate-50/50 space-y-2">
+                <label className="text-[10px] font-black text-slate-600 uppercase tracking-wider block">
+                  Edit Item Produk Transaksi
+                </label>
+
+                {editFormItems.map((item, idx) => (
+                  <div key={idx} className="bg-white p-2.5 rounded-xl border border-slate-200 flex items-center justify-between text-xs">
+                    <div className="flex-1 pr-2">
+                      <div className="font-bold text-slate-800">{item.productName}</div>
+                      <div className="text-[10px] text-slate-500 font-mono">
+                        @ Rp {item.price.toLocaleString('id-ID')} = Rp {item.subtotal.toLocaleString('id-ID')}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => handleUpdateEditItemQty(idx, -1)}
+                        className="p-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-600"
+                      >
+                        <Minus className="h-3.5 w-3.5" />
+                      </button>
+                      <span className="font-bold font-mono px-1.5">{item.quantity}</span>
+                      <button
+                        type="button"
+                        onClick={() => handleUpdateEditItemQty(idx, 1)}
+                        className="p-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-600"
+                      >
+                        <Plus className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleUpdateEditItemQty(idx, -item.quantity)}
+                        className="p-1 text-rose-500 hover:bg-rose-50 rounded ml-1"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Financial Inputs */}
+              <div className="grid grid-cols-2 gap-3 bg-slate-50 p-3 rounded-2xl border border-slate-200 text-xs">
+                <div>
+                  <label className="text-[10px] font-bold text-slate-500 block mb-1">Potongan Diskon (Rp)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={editFormDiscount}
+                    onChange={(e) => setEditFormDiscount(Math.max(0, parseInt(e.target.value) || 0))}
+                    className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-mono font-bold"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold text-slate-500 block mb-1">Ongkos Kirim / Ongkir (Rp)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={editFormShippingFee}
+                    onChange={(e) => setEditFormShippingFee(Math.max(0, parseInt(e.target.value) || 0))}
+                    className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-mono font-bold"
+                  />
+                </div>
+              </div>
+
+              {/* Submit Buttons */}
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setEditingOrder(null)}
+                  className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  className="flex-2 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl transition shadow-md shadow-indigo-500/15"
+                >
+                  Simpan Perubahan Data
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

@@ -23,10 +23,11 @@ import LockScreen from './components/LockScreen';
 import MarketplacePortal from './components/MarketplacePortal';
 
 function AppContent() {
-  const { activeTab, setActiveTab, currentBranch, isLocked } = useApp();
+  const { activeTab, setActiveTab, currentBranch, isLocked, loggedCustomer } = useApp();
   const [selectedReceipt, setSelectedReceipt] = useState<any | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [guestView, setGuestView] = useState<'marketplace' | 'login'>('marketplace');
+  const [showMarketplaceAuth, setShowMarketplaceAuth] = useState(false);
 
   React.useEffect(() => {
     if (!isLocked) {
@@ -234,31 +235,43 @@ function AppContent() {
       return (
         <div className="min-h-screen bg-slate-50 flex flex-col font-sans select-none">
           {/* Public Header for Customers */}
-          <header className="h-16 bg-white border-b border-slate-200/80 px-4 sm:px-8 flex items-center justify-between sticky top-0 z-50 shadow-sm flex-shrink-0">
-            <div className="flex items-center gap-3">
-              <div className="h-10 w-10 bg-indigo-600 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-indigo-500/20">
-                <Compass className="h-5 w-5 animate-spin-slow" />
+          <header className="h-16 bg-white border-b border-slate-200/80 px-4 sm:px-8 grid grid-cols-3 items-center sticky top-0 z-50 shadow-sm flex-shrink-0">
+            {/* Left spacing for centering */}
+            <div className="flex items-center"></div>
+
+            {/* Centered Logo & Title */}
+            <div className="flex items-center gap-2.5 sm:gap-3 justify-self-center text-center">
+              <div className="h-9 w-9 sm:h-10 sm:w-10 bg-indigo-600 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-indigo-500/20 flex-shrink-0">
+                <Compass className="h-4 w-4 sm:h-5 sm:w-5 animate-spin-slow" />
               </div>
               <div className="text-left">
-                <h1 className="text-sm font-black text-slate-800 tracking-wider uppercase">Kedai Kepanduan</h1>
-                <p className="text-[10px] text-indigo-600 font-extrabold uppercase tracking-widest">Klaten Branch</p>
+                <h1 className="text-xs sm:text-sm font-black text-slate-800 tracking-wider uppercase whitespace-nowrap">Kedai Kepanduan</h1>
+                <p className="text-[9px] sm:text-[10px] text-indigo-600 font-extrabold uppercase tracking-widest">Klaten Branch</p>
               </div>
             </div>
 
-            <div className="flex items-center gap-4">
-              <button
-                onClick={() => setGuestView('login')}
-                className="px-4 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold rounded-xl transition-all duration-200 flex items-center gap-2 border border-indigo-100 shadow-sm"
-              >
-                <LogIn className="h-3.5 w-3.5" />
-                <span>Akses Admin / Karyawan</span>
-              </button>
+            {/* Right-aligned login button */}
+            <div className="justify-self-end flex items-center gap-4">
+              {!loggedCustomer && (
+                <button
+                  onClick={() => setShowMarketplaceAuth(true)}
+                  className="px-3 py-1.5 sm:px-4 sm:py-2 bg-indigo-55 hover:bg-indigo-100 text-indigo-700 text-[11px] sm:text-xs font-bold rounded-xl transition-all duration-200 flex items-center gap-2 border border-indigo-150 shadow-sm whitespace-nowrap animate-pulse"
+                >
+                  <LogIn className="h-3.5 w-3.5 animate-bounce" />
+                  <span className="hidden md:inline">Masuk / Daftar / Admin</span>
+                  <span className="md:hidden">Akses</span>
+                </button>
+              )}
             </div>
           </header>
 
           {/* Full Screen Marketplace */}
           <div className="flex-1 p-4 sm:p-6 max-w-7xl mx-auto w-full overflow-y-auto">
-            <MarketplacePortal />
+            <MarketplacePortal 
+              onAdminLogin={() => setGuestView('login')}
+              showAuthModalExternal={showMarketplaceAuth}
+              setShowAuthModalExternal={setShowMarketplaceAuth}
+            />
           </div>
 
           {/* Public Footer */}

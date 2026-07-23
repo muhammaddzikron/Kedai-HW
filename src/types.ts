@@ -98,6 +98,7 @@ export interface Customer {
   name: string;
   phone: string;
   email: string;
+  password?: string;
   group: 'RETAIL' | 'VIP' | 'WHOLESALE' | 'MEMBER';
   membershipPoints: number;
   tier: 'SILVER' | 'GOLD' | 'PLATINUM';
@@ -229,10 +230,16 @@ export interface OnlineOrder {
   date: string;
   items: { productName: string; quantity: number; price: number; subtotal: number }[];
   total: number;
+  shippingFee?: number;
   status: 'PENDING' | 'PROCESSING' | 'SHIPPED' | 'DELIVERED' | 'CANCELLED';
   shippingAddress: string;
   shippingCourier: string;
   paymentGateway: 'MIDTRANS' | 'WHATSAPP_COD';
+  processedBy?: string;
+  processedByPhone?: string;
+  processedByRole?: string;
+  paymentProofNote?: string;
+  isPaymentConfirmed?: boolean;
 }
 
 export interface PpobTransaction {

@@ -51,6 +51,7 @@ interface AppContextType {
   onlineOrders: OnlineOrder[];
   ppobTransactions: PpobTransaction[];
   orders: Order[];
+  updateOrder: (orderId: string, updatedFields: Partial<Order>) => void;
   inventoryMovements: InventoryMovement[];
   accountCodes: AccountCode[];
   activeShift: Shift | null;
@@ -66,7 +67,7 @@ interface AppContextType {
   addKonveksiOrder: (order: Omit<KonveksiOrder, 'id' | 'orderNo'>) => void;
   updateKonveksiOrderStatus: (id: string, status: KonveksiOrder['status']) => void;
   addOnlineOrder: (order: Omit<OnlineOrder, 'id' | 'orderNo' | 'date'>) => void;
-  updateOnlineOrderStatus: (id: string, status: OnlineOrder['status']) => void;
+  updateOnlineOrderStatus: (id: string, status: OnlineOrder['status'], processedBy?: string, processedByPhone?: string, processedByRole?: string, shippingFee?: number, paymentProofNote?: string) => void;
   
   // Tab Management
   setActiveTab: (tab: string) => void;
@@ -160,6 +161,8 @@ interface AppContextType {
   pushPurchasesToGoogleSheets: (currentPurchases?: PurchaseOrder[]) => Promise<boolean>;
   pushStaffToGoogleSheets: (currentStaff?: Staff[]) => Promise<boolean>;
   pushAllDataToGoogleSheets: () => Promise<boolean>;
+  loggedCustomer: Customer | null;
+  setLoggedCustomer: React.Dispatch<React.SetStateAction<Customer | null>>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -275,6 +278,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [customers, setCustomers] = useState<Customer[]>(() => {
     const saved = localStorage.getItem('kdp_customers');
     return saved ? JSON.parse(saved) : INITIAL_CUSTOMERS;
+  });
+
+  const [loggedCustomer, setLoggedCustomer] = useState<Customer | null>(() => {
+    const saved = localStorage.getItem('kdp_logged_customer');
+    try {
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
   });
 
   const [suppliers, setSuppliers] = useState<Supplier[]>(() => {
@@ -531,6 +543,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     localStorage.setItem('kdp_customers', JSON.stringify(customers));
   }, [customers]);
+
+  useEffect(() => {
+    if (loggedCustomer) {
+      localStorage.setItem('kdp_logged_customer', JSON.stringify(loggedCustomer));
+    } else {
+      localStorage.removeItem('kdp_logged_customer');
+    }
+  }, [loggedCustomer]);
 
   useEffect(() => {
     localStorage.setItem('kdp_suppliers', JSON.stringify(suppliers));
@@ -991,6 +1011,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  const updateOrder = (orderId: string, updatedFields: Partial<Order>) => {
+    setOrders((prev) =>
+      prev.map((o) => {
+        if (o.id === orderId) {
+          const updated = { ...o, ...updatedFields };
+          pushOrderToGoogleSheets(updated);
+          return updated;
+        }
+        return o;
+      })
+    );
+    addAuditLog('EDIT_TRANSACTION', 'POS', `Mengubah data transaksi #${orderId}`);
+  };
+
   // Product Management Actions
   const addProduct = (product: Omit<Product, 'id' | 'createdAt' | 'updatedAt'>) => {
     const newProduct: Product = {
@@ -1072,6 +1106,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       pushCustomersToGoogleSheets(updatedList);
       return updatedList;
     });
+    if (loggedCustomer && loggedCustomer.id === id) {
+      setLoggedCustomer((prev) => prev ? { ...prev, ...updatedFields } : null);
+    }
     const found = customers.find((c) => c.id === id);
     if (found) {
       addAuditLog('EDIT_CUSTOMER', 'CUSTOMER', `Updated customer details for: ${found.name}`);
@@ -1245,13 +1282,42 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     addAuditLog('ADD_ONLINE_ORDER', 'MARKETPLACE', `Transaksi mandiri dibuat oleh Customer: ${oo.customerName} sebesar Rp ${oo.total.toLocaleString()}`);
   };
 
-  const updateOnlineOrderStatus = (id: string, status: OnlineOrder['status']) => {
+  const updateOnlineOrderStatus = (
+    id: string, 
+    status: OnlineOrder['status'], 
+    processedBy?: string, 
+    processedByPhone?: string, 
+    processedByRole?: string,
+    shippingFee?: number,
+    paymentProofNote?: string
+  ) => {
+    let updatedOrderObj: OnlineOrder | null = null;
     setOnlineOrders((prev) =>
-      prev.map((o) => (o.id === id ? { ...o, status } : o))
+      prev.map((o) => {
+        if (o.id === id) {
+          const itemsSubtotal = o.items.reduce((acc, item) => acc + item.subtotal, 0);
+          const finalShippingFee = shippingFee !== undefined ? shippingFee : (o.shippingFee || 0);
+          const calculatedTotal = itemsSubtotal + finalShippingFee;
+
+          const updated: OnlineOrder = {
+            ...o,
+            status,
+            shippingFee: finalShippingFee,
+            total: calculatedTotal,
+            processedBy: processedBy || o.processedBy || currentUser.name,
+            processedByPhone: processedByPhone || o.processedByPhone || currentUser.phone || '08123456789',
+            processedByRole: processedByRole || o.processedByRole || currentUser.role,
+            ...(paymentProofNote !== undefined ? { paymentProofNote, isPaymentConfirmed: true } : {})
+          };
+          updatedOrderObj = updated;
+          return updated;
+        }
+        return o;
+      })
     );
-    const found = onlineOrders.find((o) => o.id === id);
+    const found = updatedOrderObj || onlineOrders.find((o) => o.id === id);
     if (found) {
-      addAuditLog('UPDATE_ONLINE_STATUS', 'MARKETPLACE', `Pesanan online ${found.orderNo} diupdate ke status: ${status}`);
+      addAuditLog('UPDATE_ONLINE_STATUS', 'MARKETPLACE', `Pesanan online ${found.orderNo} diupdate ke status: ${status} (Ongkir: Rp ${(found.shippingFee || 0).toLocaleString('id-ID')})`);
       
       if ((status === 'PROCESSING' || status === 'DELIVERED') && !orders.some(o => o.holdName === found.orderNo)) {
         let customerObj = customers.find(c => c.name.toLowerCase() === found.customerName.toLowerCase() || c.phone === found.customerPhone);
@@ -1268,6 +1334,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           };
         });
 
+        const itemsSubtotal = found.items.reduce((acc, item) => acc + item.subtotal, 0);
+        const finalTotal = found.total || itemsSubtotal + (found.shippingFee || 0);
+
         const newPosOrder: Order = {
           id: `inv-onl-${Date.now()}`,
           orderNo: `INV-ONL-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${Math.floor(1000 + Math.random() * 9000)}`,
@@ -1276,12 +1345,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           customerName: found.customerName,
           customerPhone: found.customerPhone,
           items: itemsList,
-          subtotal: found.total,
+          subtotal: itemsSubtotal,
           tax: 0,
           serviceCharge: 0,
           discount: 0,
-          total: found.total,
-          amountPaid: found.total,
+          total: finalTotal,
+          amountPaid: finalTotal,
           change: 0,
           paymentMethod: found.paymentGateway === 'MIDTRANS' ? 'QRIS' : 'CASH',
           paymentStatus: found.paymentGateway === 'MIDTRANS' ? 'PAID' : 'UNPAID',
@@ -1296,6 +1365,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         };
 
         setOrders(prev => [newPosOrder, ...prev]);
+
+        if (customerObj) {
+          const pointsEarned = Math.floor(found.total / 10000); // 1 point per 10k IDR
+          setCustomers(prev =>
+            prev.map(c =>
+              c.id === (customerObj as Customer).id
+                ? { 
+                    ...c, 
+                    membershipPoints: c.membershipPoints + pointsEarned,
+                    tier: (c.membershipPoints + pointsEarned) > 1000 ? 'PLATINUM' : (c.membershipPoints + pointsEarned) > 300 ? 'GOLD' : 'SILVER'
+                  }
+                : c
+            )
+          );
+        }
 
         setProducts(prev =>
           prev.map(p => {
@@ -2315,6 +2399,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         onlineOrders,
         ppobTransactions,
         orders,
+        updateOrder,
         inventoryMovements,
         accountCodes,
         activeShift,
@@ -2331,6 +2416,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         updateKonveksiOrderStatus,
         addOnlineOrder,
         updateOnlineOrderStatus,
+        loggedCustomer,
+        setLoggedCustomer,
         
         setActiveTab,
         setIsOnline,
