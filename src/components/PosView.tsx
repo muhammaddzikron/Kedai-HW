@@ -34,7 +34,11 @@ import {
   Package,
   Calendar,
   DollarSign,
-  Receipt
+  Receipt,
+  RefreshCw,
+  CloudDownload,
+  CloudUpload,
+  Database
 } from 'lucide-react';
 
 export default function PosView({ onCheckoutSuccess }: { onCheckoutSuccess: (order: any) => void }) {
@@ -60,7 +64,11 @@ export default function PosView({ onCheckoutSuccess }: { onCheckoutSuccess: (ord
     activeShift,
     openShift,
     currentUser,
-    currentBranch
+    currentBranch,
+    googleAppsScriptUrl,
+    pullOrdersFromGoogleSheets,
+    pushAllOrdersToGoogleSheets,
+    isSyncing
   } = useApp();
 
   // Search & Filter
@@ -123,6 +131,32 @@ export default function PosView({ onCheckoutSuccess }: { onCheckoutSuccess: (ord
       })
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [orders, recentSearchQuery, recentFilterStatus]);
+
+  const [syncStatusMsg, setSyncStatusMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  const handlePullFromSpreadsheet = async () => {
+    setSyncStatusMsg(null);
+    try {
+      await pullOrdersFromGoogleSheets();
+      setSyncStatusMsg({ type: 'success', text: 'Berhasil membaca & menyinkronkan data rekap transaksi dari Google Sheets!' });
+    } catch (err: any) {
+      setSyncStatusMsg({ type: 'error', text: `Gagal membaca data Spreadsheet: ${err.message || err}` });
+    }
+  };
+
+  const handlePushToSpreadsheet = async () => {
+    setSyncStatusMsg(null);
+    try {
+      const res = await pushAllOrdersToGoogleSheets();
+      if (res) {
+        setSyncStatusMsg({ type: 'success', text: 'Berhasil mengunggah seluruh data rekap transaksi ke Google Sheets!' });
+      } else {
+        setSyncStatusMsg({ type: 'error', text: 'Gagal mengunggah data ke Google Sheets. Pastikan URL Apps Script di Pengaturan sudah dikonfigurasi.' });
+      }
+    } catch (err: any) {
+      setSyncStatusMsg({ type: 'error', text: `Error: ${err.message || err}` });
+    }
+  };
 
   const handleStartEditOrder = (order: Order) => {
     setEditingOrder(order);
@@ -1210,26 +1244,74 @@ export default function PosView({ onCheckoutSuccess }: { onCheckoutSuccess: (ord
         <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4 backdrop-blur-xs">
           <div className="bg-white rounded-3xl max-w-4xl w-full max-h-[90vh] flex flex-col border border-slate-200 shadow-2xl relative overflow-hidden animate-in fade-in zoom-in-95 duration-150 text-left">
             {/* Header */}
-            <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50/80">
+            <div className="p-4 sm:p-5 border-b border-slate-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-slate-50/80">
               <div className="flex items-center gap-2.5">
                 <div className="h-10 w-10 bg-indigo-600 text-white rounded-2xl flex items-center justify-center shadow-md shadow-indigo-500/20">
                   <History className="h-5 w-5" />
                 </div>
                 <div>
                   <h3 className="font-extrabold text-slate-900 text-base">Rekap Transaksi Kasir Terakhir</h3>
-                  <p className="text-xs text-slate-500">Lihat histori, cetak ulang nota, dan edit data transaksi</p>
+                  <p className="text-xs text-slate-500">Lihat histori, cetak ulang nota, edit data, & sinkron ke Spreadsheet</p>
                 </div>
               </div>
-              <button
-                onClick={() => setShowRecentTransactionsModal(false)}
-                className="p-2 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 transition"
-              >
-                <X className="h-5 w-5" />
-              </button>
+
+              <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+                <button
+                  type="button"
+                  onClick={handlePullFromSpreadsheet}
+                  disabled={isSyncing}
+                  title="Membaca & menyinkronkan data rekap transaksi dari Google Sheets"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-xs rounded-xl border border-indigo-200 transition disabled:opacity-50"
+                >
+                  <CloudDownload className={`h-3.5 w-3.5 ${isSyncing ? 'animate-spin text-indigo-600' : ''}`} />
+                  <span>Tarik Data Sheet</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handlePushToSpreadsheet}
+                  disabled={isSyncing}
+                  title="Menyimpan ulang seluruh rekap transaksi ke Google Sheets"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold text-xs rounded-xl border border-emerald-200 transition disabled:opacity-50"
+                >
+                  <CloudUpload className={`h-3.5 w-3.5 ${isSyncing ? 'animate-spin text-emerald-600' : ''}`} />
+                  <span>Upload ke Sheet</span>
+                </button>
+
+                <button
+                  onClick={() => setShowRecentTransactionsModal(false)}
+                  className="p-2 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 transition"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
             </div>
 
             {/* Filter Controls & Stats Summary */}
             <div className="p-4 bg-slate-50 border-b border-slate-200 space-y-3">
+              {/* Sync status alert if present */}
+              {syncStatusMsg && (
+                <div
+                  className={`p-3 rounded-2xl border text-xs font-semibold flex items-center justify-between animate-in fade-in duration-200 ${
+                    syncStatusMsg.type === 'success'
+                      ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                      : 'bg-rose-50 border-rose-200 text-rose-800'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    {syncStatusMsg.type === 'success' ? (
+                      <CheckCircle className="h-4 w-4 text-emerald-600 shrink-0" />
+                    ) : (
+                      <AlertCircle className="h-4 w-4 text-rose-600 shrink-0" />
+                    )}
+                    <span>{syncStatusMsg.text}</span>
+                  </div>
+                  <button onClick={() => setSyncStatusMsg(null)} className="text-slate-400 hover:text-slate-600 p-0.5">
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              )}
+
               {/* Quick Summary Cards */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
                 <div className="bg-white p-3 rounded-2xl border border-slate-200 shadow-2xs">

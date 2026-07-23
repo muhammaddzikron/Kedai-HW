@@ -143,6 +143,8 @@ interface AppContextType {
   pushCustomersToGoogleSheets: (currentCustomers?: Customer[]) => Promise<boolean>;
   pullCustomersFromGoogleSheets: () => Promise<void>;
   pullStaffFromGoogleSheets: () => Promise<void>;
+  pullOrdersFromGoogleSheets: () => Promise<void>;
+  pushAllOrdersToGoogleSheets: (currentOrders?: Order[]) => Promise<boolean>;
 
   purchaseOrders: PurchaseOrder[];
   setPurchaseOrders: React.Dispatch<React.SetStateAction<PurchaseOrder[]>>;
@@ -1008,6 +1010,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       );
 
       addAuditLog('ORDER_REFUNDED', 'POS', `Refunded order ${target.orderNo} of IDR ${target.total.toLocaleString()}`);
+      pushOrderToGoogleSheets({ ...target, paymentStatus: 'REFUNDED' });
     }
   };
 
@@ -2237,6 +2240,92 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  const pullOrdersFromGoogleSheets = async () => {
+    if (!googleAppsScriptUrl || !googleAppsScriptUrl.includes('script.google.com')) {
+      throw new Error('URL Google Apps Script belum dikonfigurasi di Pengaturan.');
+    }
+
+    setIsSyncing(true);
+    addAuditLog('SYNC_ORDERS_START', 'POS', 'Memulai sinkronisasi data rekap transaksi dari Google Sheets');
+
+    try {
+      const response = await fetch(`${googleAppsScriptUrl}?type=pos_transactions`);
+      if (!response.ok) {
+        throw new Error('Gagal menghubungi server Apps Script.');
+      }
+
+      const json = await response.json();
+      if (json.status === 'success' && Array.isArray(json.data)) {
+        const importedOrders: Order[] = json.data.map((row: any, idx: number) => {
+          let items: Order['items'] = [];
+          const rawItems = row["Items"] || row["items"] || row["Detail Produk"] || row["Item"];
+          if (rawItems) {
+            if (typeof rawItems === 'string') {
+              try {
+                items = JSON.parse(rawItems);
+              } catch (e) {
+                items = [];
+              }
+            } else if (Array.isArray(rawItems)) {
+              items = rawItems;
+            }
+          }
+
+          const orderNo = String(row["No Invoice"] || row["No. Nota"] || row["No Nota"] || row["orderNo"] || row["Order No"] || `TRX-${Date.now()}-${idx}`);
+          const totalVal = parseFloat(row["Grand Total"] || row["Total"] || row["total"] || "0") || 0;
+          const subtotalVal = parseFloat(row["Subtotal"] || row["subtotal"] || "0") || totalVal;
+
+          return {
+            id: row["ID"] || row["id"] || `ord-sheet-${idx}-${Date.now()}`,
+            orderNo,
+            date: row["Tanggal"] || row["Date"] || row["date"] || new Date().toISOString(),
+            items,
+            subtotal: subtotalVal,
+            tax: parseFloat(row["Pajak"] || row["tax"] || "0") || 0,
+            discount: parseFloat(row["Diskon"] || row["discount"] || "0") || 0,
+            shippingFee: parseFloat(row["Ongkir"] || row["shippingFee"] || "0") || 0,
+            total: totalVal,
+            paymentMethod: (row["Metode Pembayaran"] || row["paymentMethod"] || "CASH").toUpperCase() as any,
+            paymentStatus: (row["Status Pembayaran"] || row["paymentStatus"] || "PAID").toUpperCase() as any,
+            customerName: row["Nama Pelanggan"] || row["Pelanggan"] || row["Customer"] || row["customerName"] || "Pelanggan Umum",
+            customerPhone: row["Telepon"] || row["phone"] || row["customerPhone"] || "",
+            cashierName: row["Kasir"] || row["Cashier"] || row["cashierName"] || "Kasir Utama"
+          };
+        });
+
+        if (importedOrders.length > 0) {
+          setOrders(importedOrders);
+          localStorage.setItem('kdp_orders', JSON.stringify(importedOrders));
+        }
+        addAuditLog('SYNC_ORDERS_SUCCESS', 'POS', `Berhasil menyinkronkan ${importedOrders.length} transaksi dari Google Sheets!`);
+      } else {
+        throw new Error(json.message || 'Format data Apps Script tidak valid.');
+      }
+    } catch (err: any) {
+      console.error('Error pulling orders from Google Sheets:', err);
+      addAuditLog('SYNC_ORDERS_FAILED', 'POS', `Gagal menyinkronkan transaksi: ${err.message || err}`);
+      throw err;
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  const pushAllOrdersToGoogleSheets = async (currentOrders?: Order[]) => {
+    const list = currentOrders || orders;
+    if (!googleAppsScriptUrl || !googleAppsScriptUrl.includes('script.google.com')) return false;
+    try {
+      const response = await fetch(googleAppsScriptUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify({ action: 'sync_all_orders', orders: list })
+      });
+      return response.ok;
+    } catch (err) {
+      console.error('Error pushing all orders:', err);
+      return false;
+    }
+  };
+
   const pushOrderToGoogleSheets = async (order: Order) => {
     if (!googleAppsScriptUrl || !googleAppsScriptUrl.includes('script.google.com')) return false;
     try {
@@ -2369,8 +2458,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const p3 = await pushSuppliersToGoogleSheets();
       const p4 = await pushPurchasesToGoogleSheets();
       const p5 = await pushStaffToGoogleSheets();
+      const p6 = await pushAllOrdersToGoogleSheets();
       
-      const success = p1 && p2 && p3 && p4 && p5;
+      const success = p1 && p2 && p3 && p4 && p5 && p6;
       if (success) {
         addAuditLog('SYNC_ALL_SUCCESS', 'SYSTEM', 'Berhasil menyinkronkan seluruh database ke Google Sheets!');
       } else {
@@ -2482,6 +2572,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         pushCustomersToGoogleSheets,
         pullCustomersFromGoogleSheets,
         pullStaffFromGoogleSheets,
+        pullOrdersFromGoogleSheets,
+        pushAllOrdersToGoogleSheets,
 
         purchaseOrders,
         setPurchaseOrders,

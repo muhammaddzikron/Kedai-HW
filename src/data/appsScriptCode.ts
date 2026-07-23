@@ -27,6 +27,8 @@ function doGet(e) {
       return getSheetData(ss, 'Pelanggan', ['ID Pelanggan', 'Nama', 'Telepon', 'Email', 'Grup', 'Tingkatan', 'Poin Reward', 'Saldo Cashback', 'Alamat']);
     } else if (type === 'staff' || type === 'karyawan') {
       return getSheetData(ss, 'Staff', ['ID Staff', 'Nama Staff', 'Role', 'Telepon', 'Email', 'PIN']);
+    } else if (type === 'pos_transactions' || type === 'penjualan_pos' || type === 'transaksi' || type === 'rekap_kasir') {
+      return getSheetData(ss, 'Penjualan POS', ['No Invoice', 'Tanggal', 'Nama Pelanggan', 'Kasir', 'Cabang', 'Subtotal', 'Diskon', 'Pajak', 'Grand Total', 'Metode Pembayaran', 'Status Pembayaran', 'Items']);
     } else if (type === 'pesanan_online' || type === 'online_orders') {
       return getSheetData(ss, 'Pesanan Online', ['ID Order', 'No Pesanan', 'Nama Customer', 'No Telepon', 'Tanggal', 'Status', 'Ongkir', 'Total', 'Petugas CS', 'Catatan Pembayaran']);
     }
@@ -51,6 +53,8 @@ function doPost(e) {
       return syncProductsSheet(ss, data.products);
     } else if (action === 'sync_all_customers') {
       return syncCustomersSheet(ss, data.customers);
+    } else if (action === 'sync_all_orders') {
+      return syncAllOrdersSheet(ss, data.orders);
     } else if (action === 'add_pos_transaction') {
       return addPosTransactionSheet(ss, data.order);
     } else if (action === 'update_online_order' || action === 'add_online_order') {
@@ -128,11 +132,46 @@ function syncCustomersSheet(ss, customers) {
   return jsonResponse({ status: 'success', message: 'Sync pelanggan berhasil', count: customers ? customers.length : 0 });
 }
 
+function syncAllOrdersSheet(ss, orders) {
+  var headers = ['No Invoice', 'Tanggal', 'Nama Pelanggan', 'Kasir', 'Cabang', 'Subtotal', 'Diskon', 'Pajak', 'Grand Total', 'Metode Pembayaran', 'Status Pembayaran', 'Items'];
+  var sheet = getOrCreateSheet(ss, 'Penjualan POS', headers);
+  sheet.clearContents();
+  sheet.appendRow(headers);
+  if (orders && orders.length) {
+    orders.forEach(function(o) {
+      sheet.appendRow([
+        o.orderNo || '',
+        o.date || new Date().toISOString(),
+        o.customerName || 'Umum',
+        o.cashierName || 'Kasir',
+        o.branchName || 'Utama',
+        o.subtotal || 0,
+        o.discount || 0,
+        o.tax || 0,
+        o.total || 0,
+        o.paymentMethod || 'CASH',
+        o.paymentStatus || 'PAID',
+        JSON.stringify(o.items || [])
+      ]);
+    });
+  }
+  return jsonResponse({ status: 'success', message: 'Sync transaksi POS berhasil', count: orders ? orders.length : 0 });
+}
+
 function addPosTransactionSheet(ss, order) {
-  var headers = ['No Invoice', 'Tanggal', 'Nama Pelanggan', 'Kasir', 'Cabang', 'Subtotal', 'Diskon', 'Pajak', 'Grand Total', 'Metode Pembayaran'];
+  var headers = ['No Invoice', 'Tanggal', 'Nama Pelanggan', 'Kasir', 'Cabang', 'Subtotal', 'Diskon', 'Pajak', 'Grand Total', 'Metode Pembayaran', 'Status Pembayaran', 'Items'];
   var sheet = getOrCreateSheet(ss, 'Penjualan POS', headers);
   if (order) {
-    sheet.appendRow([
+    var data = sheet.getDataRange().getValues();
+    var rowIndex = -1;
+    for (var i = 1; i < data.length; i++) {
+      if (data[i][0] == order.orderNo) {
+        rowIndex = i + 1;
+        break;
+      }
+    }
+
+    var rowValues = [
       order.orderNo || '',
       order.date || new Date().toISOString(),
       order.customerName || 'Umum',
@@ -142,8 +181,16 @@ function addPosTransactionSheet(ss, order) {
       order.discount || 0,
       order.tax || 0,
       order.total || 0,
-      order.paymentMethod || 'CASH'
-    ]);
+      order.paymentMethod || 'CASH',
+      order.paymentStatus || 'PAID',
+      JSON.stringify(order.items || [])
+    ];
+
+    if (rowIndex > 0) {
+      sheet.getRange(rowIndex, 1, 1, rowValues.length).setValues([rowValues]);
+    } else {
+      sheet.appendRow(rowValues);
+    }
   }
   return jsonResponse({ status: 'success', message: 'Transaksi POS tersimpan' });
 }
